@@ -26,6 +26,7 @@ DEFAULT_PATH = Path(__file__).resolve().parents[2] / "config" / "music_spec.yaml
 DROP = "drop"
 AVP_LABELS = ("kd", "sd", "hhc", "hho")  # the AVP dataset's four sound classes
 AVP_SUBSETS = ("personal", "fixed")
+FLAM_KEEP = ("first", "loudest")
 
 Range = tuple[float, float]
 
@@ -45,6 +46,7 @@ class SameRhythm:
     steps_per_beat: int
     ghost_velocity_below: dict[str, int]  # one entry per voice
     flam_merge_ms: float
+    flam_keep: str | None  # "first" or "loudest"; None until the spec decides
     swing_is_different: bool
     half_time_double_time_different: bool
     min_hits_per_loop: dict[str, int]
@@ -56,14 +58,18 @@ class Loops:
     time_signatures: tuple[str, ...]
     start_on_downbeat: bool
     exclude_fills: bool
-    exclude_count_ins_and_endings: bool
+    start_at_first_bar_with: tuple[str, ...]  # voices; skips count-ins
+    drop_last_bars: int  # skips endings
+    performance_tempo_bpm: Range
+    hop_bars: int | None  # None until the spec decides
     max_loops_per_performance: int | None
-    remove_duplicates: bool
+    remove_duplicates_within_performance: bool
 
 
 @dataclass(frozen=True)
 class Rendering:
     tempo_bpm: Range
+    max_tempo_change_pct: float | None  # None until the spec decides
     loudness_normalize: bool
     keep_performer_velocities: bool
     kits: tuple[dict, ...]  # entry format gets defined when kits are chosen
@@ -135,7 +141,7 @@ class MusicSpec:
         return any(key == d or key.startswith(d + ".") for d in self.decided)
 
     def undecided(self) -> list[str]:
-        """Decision-sized keys still at their spec default."""
+        """Decision-sized keys still at their spec default or still empty (null)."""
         return [u for u in self.units if not self.is_decided(u)]
 
 
@@ -267,6 +273,9 @@ def parse_spec(raw: Any, path: Path = DEFAULT_PATH) -> MusicSpec:
             ghost, voices, "same_rhythm.ghost_velocity_below", lambda x, w: _int(x, w, 0, 128)
         ),
         flam_merge_ms=_num(s["flam_merge_ms"], "same_rhythm.flam_merge_ms", 0),
+        flam_keep=None
+        if s["flam_keep"] is None
+        else _choice(s["flam_keep"], FLAM_KEEP, "same_rhythm.flam_keep"),
         swing_is_different=_bool(s["swing_is_different"], "same_rhythm.swing_is_different"),
         half_time_double_time_different=_bool(
             s["half_time_double_time_different"], "same_rhythm.half_time_double_time_different"
@@ -285,18 +294,27 @@ def parse_spec(raw: Any, path: Path = DEFAULT_PATH) -> MusicSpec:
     if not sigs or bad:
         raise SpecError(f"loops.time_signatures: use GMD's '4-4' format, got {list(sigs)}")
     max_loops = lp["max_loops_per_performance"]
+    hop = lp["hop_bars"]
     loops = Loops(
         bars=_int(lp["bars"], "loops.bars", 1),
         time_signatures=sigs,
         start_on_downbeat=_bool(lp["start_on_downbeat"], "loops.start_on_downbeat"),
         exclude_fills=_bool(lp["exclude_fills"], "loops.exclude_fills"),
-        exclude_count_ins_and_endings=_bool(
-            lp["exclude_count_ins_and_endings"], "loops.exclude_count_ins_and_endings"
+        start_at_first_bar_with=_str_list(
+            lp["start_at_first_bar_with"], "loops.start_at_first_bar_with", voices
         ),
+        drop_last_bars=_int(lp["drop_last_bars"], "loops.drop_last_bars", 0),
+        performance_tempo_bpm=_range(
+            lp["performance_tempo_bpm"], "loops.performance_tempo_bpm", 20, 400
+        ),
+        hop_bars=None if hop is None else _int(hop, "loops.hop_bars", 1),
         max_loops_per_performance=None
         if max_loops is None
         else _int(max_loops, "loops.max_loops_per_performance", 1),
-        remove_duplicates=_bool(lp["remove_duplicates"], "loops.remove_duplicates"),
+        remove_duplicates_within_performance=_bool(
+            lp["remove_duplicates_within_performance"],
+            "loops.remove_duplicates_within_performance",
+        ),
     )
 
     r = _keys(
@@ -306,6 +324,9 @@ def parse_spec(raw: Any, path: Path = DEFAULT_PATH) -> MusicSpec:
         raise SpecError("rendering.kits: expected a list of kit entries")
     rendering = Rendering(
         tempo_bpm=_range(r["tempo_bpm"], "rendering.tempo_bpm", 20, 400),
+        max_tempo_change_pct=None
+        if r["max_tempo_change_pct"] is None
+        else _num(r["max_tempo_change_pct"], "rendering.max_tempo_change_pct", 0, 100),
         loudness_normalize=_bool(r["loudness_normalize"], "rendering.loudness_normalize"),
         keep_performer_velocities=_bool(
             r["keep_performer_velocities"], "rendering.keep_performer_velocities"

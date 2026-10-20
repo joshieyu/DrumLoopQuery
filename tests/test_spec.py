@@ -45,6 +45,55 @@ def test_music_lead_decisions_are_recorded():
     assert spec.is_decided("same_rhythm.half_time_double_time_different")
 
 
+def test_section_1_decisions():
+    spec = load_spec()
+    assert spec.is_decided("drum_map")
+    assert spec.voice_of(44) == "hats"  # pedal hat counts as hats
+    assert {spec.voice_of(n) for n in (40, 37)} == {"snare"}  # rimshot, cross-stick
+    assert {spec.voice_of(n) for n in (51, 59, 53)} == {"hats"}  # ride and bell
+    assert all(spec.voice_of(n) is None for n in spec.drum_map["toms"].notes)
+    assert all(spec.voice_of(n) is None for n in spec.drum_map["crash"].notes)
+
+
+def test_section_2_to_4_decisions():
+    spec = load_spec()
+    sr = spec.same_rhythm
+    assert sr.steps_per_beat == 12
+    assert all(spec.ghost_threshold(v) == 15 for v in spec.voices)
+    assert sr.flam_merge_ms == 30
+    assert sr.swing_is_different is True
+    assert sr.min_hits_per_loop == {"kick": 1, "snare": 1}
+    lp = spec.loops
+    assert (lp.bars, lp.time_signatures, lp.start_on_downbeat) == (2, ("4-4",), True)
+    assert lp.start_at_first_bar_with == ("kick", "snare")
+    assert lp.drop_last_bars == 1
+    assert lp.performance_tempo_bpm == (70, 160)
+    assert lp.remove_duplicates_within_performance is True
+    assert spec.rendering.tempo_bpm == (70, 160)
+    for key in [
+        "same_rhythm.steps_per_beat",
+        "same_rhythm.ghost_velocity_below",
+        "same_rhythm.flam_merge_ms",
+        "same_rhythm.min_hits_per_loop",
+        "loops.start_at_first_bar_with",
+        "loops.drop_last_bars",
+        "loops.performance_tempo_bpm",
+        "rendering.tempo_bpm",
+        "rendering.loudness_normalize",
+        "rendering.keep_performer_velocities",
+    ]:
+        assert spec.is_decided(key), key
+
+
+def test_open_questions_stay_open():
+    spec = load_spec()
+    assert spec.same_rhythm.flam_keep is None
+    assert spec.loops.hop_bars is None
+    assert spec.rendering.max_tempo_change_pct is None
+    for key in ["same_rhythm.flam_keep", "loops.hop_bars", "rendering.max_tempo_change_pct"]:
+        assert key in spec.undecided()
+
+
 def test_voice_of_drops_and_rejects_unknown_notes():
     spec = load_spec()
     assert spec.voice_of(36) == "kick"
@@ -71,7 +120,8 @@ def test_per_voice_ghost_thresholds(raw):
 def test_undecided_lists_defaults_only():
     spec = load_spec()
     undecided = spec.undecided()
-    assert "same_rhythm.steps_per_beat" in undecided
+    assert "beatbox.avp_subset" in undecided
+    assert "same_rhythm.steps_per_beat" not in undecided
     assert "drum_map.hihat_open" not in undecided
     assert all(spec.is_decided(u) == (u not in undecided) for u in spec.units)
 
@@ -96,6 +146,11 @@ def test_undecided_lists_defaults_only():
         (lambda r: r["loops"].update(time_signatures=["4/4"]), "format"),
         (lambda r: r.update(decided=["same_rhythm.flam_window_ms"]), "do not name keys"),
         (lambda r: r["loops"].update(exclude_fills="yes"), "true or false"),
+        (lambda r: r["same_rhythm"].update(flam_keep="middle"), "not one of"),
+        (lambda r: r["loops"].update(hop_bars=0), "outside"),
+        (lambda r: r["loops"].update(start_at_first_bar_with=["toms"]), "not one of"),
+        (lambda r: r["loops"].update(performance_tempo_bpm=[160, 70]), "above high"),
+        (lambda r: r["rendering"].update(max_tempo_change_pct=-5), "outside"),
     ],
 )
 def test_invalid_specs_are_rejected(raw, edit, message):

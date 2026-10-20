@@ -23,17 +23,17 @@ MIDI note numbers are from the [GMD documentation](https://magenta.tensorflow.or
 
 | Articulation | MIDI note(s) | Default group | DECISION |
 |---|---|---|---|
-| Kick | 36 | kick | |
-| Snare, head | 38 | snare | |
-| Snare, rim shot | 40 | snare | |
-| Snare, cross-stick | 37 | snare | |
-| Toms (all) | 48, 50 (tom 1 head, rim); 45, 47 (tom 2 head, rim); 43, 58 (tom 3 head, rim) | drop | |
-| Hi-hat closed | 42 (bow), 22 (edge) | hats | |
-| Hi-hat open | 46 (bow), 26 (edge) | hats | |
-| Hi-hat pedal | 44 | drop | |
-| Ride (bow, edge) | 51 (bow), 59 (edge) | hats | |
-| Ride bell | 53 | hats | |
-| Crash | 49, 55 (crash 1 bow, edge); 57, 52 (crash 2 bow, edge) | drop | |
+| Kick | 36 | kick | kick |
+| Snare, head | 38 | snare | snare |
+| Snare, rim shot | 40 | snare | snare |
+| Snare, cross-stick | 37 | snare | snare |
+| Toms (all) | 48, 50 (tom 1 head, rim); 45, 47 (tom 2 head, rim); 43, 58 (tom 3 head, rim) | drop | drop |
+| Hi-hat closed | 42 (bow), 22 (edge) | hats | hats |
+| Hi-hat open | 46 (bow), 26 (edge) | hats | hats |
+| Hi-hat pedal | 44 | drop | hats |
+| Ride (bow, edge) | 51 (bow), 59 (edge) | hats | hats |
+| Ride bell | 53 | hats | hats |
+| Crash | 49, 55 (crash 1 bow, edge); 57, 52 (crash 2 bow, edge) | drop | drop |
 
 **Notes for B:** apply this table before anything else. Dropped hits are removed from both the rhythm label and the fake beatbox, but they stay in the rendered drum audio so loops still sound natural.
 
@@ -47,11 +47,11 @@ These rules decide which loops count as a match. D builds the answer key from th
 
 | Rule | Default | DECISION |
 |---|---|---|
-| Timing grid | 12 steps per beat (fits straight 16ths and triplets) | |
-| Ghost notes | Ignore hits with velocity below **40** (check by ear across a few kits) | |
-| Flams | Merge hits of the same voice closer than **30 ms** into one hit | |
-| Swing | Swung and straight versions of a beat are **different** rhythms | |
-| Minimum content | A loop needs at least one kick and one snare to be kept | |
+| Timing grid | 12 steps per beat (fits straight 16ths and triplets) | Yes |
+| Ghost notes | Ignore hits with velocity below **40** (check by ear across a few kits) | Ignore below 15 |
+| Flams | Merge hits of the same voice closer than **30 ms** into one hit | Yes |
+| Swing | Swung and straight versions of a beat are **different** rhythms | Yes |
+| Minimum content | A loop needs at least one kick and one snare to be kept | Yes |
 
 **Half-time vs. double-time:**
 - Default: treat them as **different** rhythms, and only use tempos where the beat's intended feel is clear.
@@ -63,12 +63,12 @@ These rules decide which loops count as a match. D builds the answer key from th
 
 | Rule | Default | DECISION |
 |---|---|---|
-| Length | 2 bars | |
-| Time signature | 4/4 only | |
-| Start point | Always on a downbeat | |
-| Fills | Excluded (use GMD's beat/fill labels, then spot-check) | |
-| Count-ins and endings | Excluded | |
-| Loops per performance | No limit, but duplicates removed | |
+| Length | 2 bars | Yes |
+| Time signature | 4/4 only | Yes |
+| Start point | Always on a downbeat | Yes |
+| Fills | Excluded (use GMD's beat/fill labels, then spot-check) | Yes |
+| Count-ins and endings | Excluded | Excluded, start at first bar that has kick and snare; drop the last bar |
+| Loops per performance | No limit, but duplicates removed | Yes, within one performance |
 
 ---
 
@@ -81,9 +81,9 @@ These rules decide which loops count as a match. D builds the answer key from th
 | | | | | |
 
 - **Aim:** a varied set, so the model can't identify a match just by kit sound. Hold out a few kits of each type for testing only.
-- **Tempos:** default range 80–140 BPM. DECISION: 
-- **Level balancing:** default is to loudness-normalize each rendered loop and check that hats are clearly audible in every kit. DECISION:
-- **Velocity handling:** keep the performer's velocities, unless a kit has poor velocity layers. DECISION:
+- **Tempos:** default range 80–140 BPM. DECISION: Expand range to 70-160 bpm, remove performances outside
+- **Level balancing:** default is to loudness-normalize each rendered loop and check that hats are clearly audible in every kit. DECISION: Yes. 
+- **Velocity handling:** keep the performer's velocities, unless a kit has poor velocity layers. DECISION: Yes.
 - **Licensing:** if a kit comes from a commercial library, we release only MIDI and splits, never its rendered audio.
 
 ---

@@ -31,19 +31,24 @@ Licenses: GMD, E-GMD, and AVP are all CC BY 4.0 (checked on the official pages).
 
 ## Spec status
 
-- **Decided:** open and closed hi-hats are one voice; half-time and double-time are different rhythms.
-- **Everything else** is still the spec default (43 values). Expect changes over the next few days. Code that reads from `load_spec()` picks them up without edits.
+Decided by the music lead (spec §1–4, details in `config/music_spec.yaml`):
 
-**Open question for everyone: what counts as "the same rhythm"?** Matching grids exactly makes almost every loop unique. A provisional count using the spec defaults:
+- **Voices:** kick = 36; snare = 38, 40 (rimshot), 37 (cross-stick); hats = closed, open, and pedal hi-hat plus ride and ride bell. Toms and crashes are dropped from the label (they stay in the audio).
+- **Same rhythm:** 12 steps per beat; hits below velocity 15 are ignored (every voice); same-voice hits closer than 30 ms merge into one; swung and straight are different rhythms; half-time and double-time are different rhythms; a loop needs at least one kick and one snare.
+- **Loops:** 2 bars, 4/4 only, starting on a downbeat; GMD fill recordings are excluded; start at the first bar that has a kick and a snare (skips count-ins) and drop each performance's last bar (skips endings); leave out performances recorded outside 70–160 BPM; remove duplicate patterns within a performance, no other limit.
+- **Rendering:** 70–160 BPM, loudness-normalized, performer velocities kept.
 
-| Grid | Ghost threshold | Unique 2-bar patterns | Windows that repeat within their performance |
-|---|---|---|---|
-| 12 steps/beat | none | 99.0% | 1.2% |
-| 12 steps/beat | 40 | 98.4% | 1.8% |
-| 16ths (4 steps/beat) | 40 | 92.6% | 9.2% |
-| 16ths, 1-bar loops | 40 | 72.2% | 32.5% |
+Still open: which hit's timing survives a flam merge, whether loops start every 1 or 2 bars, how far a loop may be rendered from its original tempo, the kit list, and spec §5–7 (still defaults). `load_spec().undecided()` lists them.
 
-About 30% of hits land between straight-16th and triplet positions (human timing, light swing), and GMD drummers vary a lot bar to bar. The options:
+**Open question for everyone: what counts as "the same rhythm"?** Matching grids exactly makes almost every loop unique. A provisional count with the decisions above (460 performances qualify):
+
+| Grid | New loop every | 2-bar loops | Unique patterns | Test loops whose pattern also appears in train |
+|---|---|---|---|---|
+| 12 steps/beat | 2 bars | 8,806 | 99.8% | 0.2% |
+| 12 steps/beat | 1 bar | 17,430 | 99.8% | 0.3% |
+| 16ths (4 steps/beat), for comparison | 2 bars | 8,831 | 98.9% | 1.9% |
+
+Many hits land between straight-16th and triplet positions (human timing, light swing), and GMD drummers vary a lot bar to bar. The options:
 1. **Accept it.** A match means the same clip on a different kit, tempo, or voice; D's "how many hits off" score covers near misses.
 2. **Loosen the grid,** so musically identical bars quantize the same way.
 3. **Count near matches.** A loop is relevant if its grid is within N hits of the query's.
@@ -81,10 +86,10 @@ The music lead makes the musical call. It affects how D builds `relevance.json`,
 1. **File formats (README §12).** Agree on them. Proposed additions:
    - a `start_bar` column in `library_manifest.csv`, so every loop can be traced back to its MIDI for listening checks
    - `pattern_id` always comes from `src.music.rhythm.pattern_id`; nobody hashes grids their own way
-2. **Patterns in more than one GMD split.** About 1% of test windows share a pattern with training at 12 steps per beat, and more with coarser grids or 1-bar loops. Pick a rule, for example drop them from test.
+2. **Patterns in more than one GMD split.** With the current decisions, 0.2% of test loops share a pattern with training (more with a coarser grid). Pick a rule, for example drop them from test.
 3. **`config/` or `configs/`.** The repo uses `config/`, but README §12 says `configs/`. Pick one.
 4. **This week:**
    - **B:** load GMD, E-GMD, and AVP; write loop cutting that produces `Note` lists for `clip_grid()`.
-   - **C:** model prototype on toy data. Clips are 2 bars (3.4–6 s at 80–140 BPM); AVP audio is 44.1 kHz mono.
+   - **C:** model prototype on toy data. Clips are 2 bars (3.0–6.9 s at 70–160 BPM); AVP audio is 44.1 kHz mono.
    - **D:** `evaluate.py` and metric definitions, tested against a fake `relevance.json`.
 5. **Musical questions go to A,** who adds the answer to `docs/music_spec.md` and the YAML within a day.

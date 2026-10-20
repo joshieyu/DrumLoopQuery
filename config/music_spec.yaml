@@ -7,12 +7,30 @@
 # When you change anything here, update docs/music_spec.md and its change log too,
 # and bump `version`.
 
-version: "0.1"
+version: "0.2"
 
-# Dotted keys the music lead has signed off on. Everything else is a default.
+# Dotted keys the music lead has signed off on. Everything else is a default,
+# and `null` means the spec has no answer yet.
 decided:
-  - drum_map.hihat_open                         # same voice as closed hats (spec §1)
-  - same_rhythm.half_time_double_time_different # spec §2
+  - drum_map                                    # spec §1, all rows (2026-10-20)
+  - same_rhythm.steps_per_beat
+  - same_rhythm.ghost_velocity_below
+  - same_rhythm.flam_merge_ms
+  - same_rhythm.swing_is_different
+  - same_rhythm.half_time_double_time_different
+  - same_rhythm.min_hits_per_loop
+  - loops.bars
+  - loops.time_signatures
+  - loops.start_on_downbeat
+  - loops.exclude_fills
+  - loops.start_at_first_bar_with
+  - loops.drop_last_bars
+  - loops.performance_tempo_bpm
+  - loops.max_loops_per_performance
+  - loops.remove_duplicates_within_performance
+  - rendering.tempo_bpm
+  - rendering.loudness_normalize
+  - rendering.keep_performer_velocities
 
 # The rhythm voices, in grid row order.
 voices: [kick, snare, hats]
@@ -28,7 +46,7 @@ drum_map:
   toms:              {notes: [48, 50, 45, 47, 43, 58], group: drop}
   hihat_closed:      {notes: [42, 22], group: hats}
   hihat_open:        {notes: [46, 26], group: hats}
-  hihat_pedal:       {notes: [44], group: drop}
+  hihat_pedal:       {notes: [44], group: hats}
   ride:              {notes: [51, 59], group: hats}
   ride_bell:         {notes: [53], group: hats}
   crash:             {notes: [49, 55, 57, 52], group: drop}
@@ -38,8 +56,9 @@ same_rhythm:
   steps_per_beat: 12
   # Hits with velocity below this are ignored. Either one number for every voice,
   # or a mapping per voice, e.g. {kick: 30, snare: 40, hats: 25}.
-  ghost_velocity_below: 40
+  ghost_velocity_below: 15
   flam_merge_ms: 30                 # same-voice hits closer than this become one hit
+  flam_keep: null                   # open: which merged hit's timing survives, first | loudest
   swing_is_different: true          # swung and straight versions are different rhythms
   half_time_double_time_different: true
   min_hits_per_loop: {kick: 1, snare: 1}
@@ -49,14 +68,18 @@ loops:
   bars: 2
   time_signatures: ["4-4"]          # GMD's info.csv format
   start_on_downbeat: true
-  exclude_fills: true
-  exclude_count_ins_and_endings: true
+  exclude_fills: true               # GMD beat_type == fill
+  start_at_first_bar_with: [kick, snare]  # skips count-ins
+  drop_last_bars: 1                 # skips endings
+  performance_tempo_bpm: [70, 160]  # leave out performances recorded outside this
+  hop_bars: null                    # open: start a new loop every 1 or every 2 bars
   max_loops_per_performance: null   # null = no limit
-  remove_duplicates: true
+  remove_duplicates_within_performance: true
 
 # --- Spec §4: drum kits and rendering ------------------------------------------
 rendering:
-  tempo_bpm: [80, 140]
+  tempo_bpm: [70, 160]
+  max_tempo_change_pct: null        # open: how far from its original tempo a loop may be rendered
   loudness_normalize: true
   keep_performer_velocities: true
   kits: []                          # filled in when kits are chosen
