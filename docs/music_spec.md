@@ -19,25 +19,25 @@ The values marked *default* are starting points, not decisions. A should change 
 
 Every drum hit in GMD gets assigned to one of three voices (**kick**, **snare**, **hats**) or dropped.
 
-Fill in the MIDI note numbers from the GMD documentation.
+MIDI note numbers are from the [GMD documentation](https://magenta.tensorflow.org/datasets/groove) (Roland TD-11 mapping). Notes 22, 26, and 58 are not General MIDI drum notes, so a GM drum instrument may play them as something else.
 
 | Articulation | MIDI note(s) | Default group | DECISION |
 |---|---|---|---|
-| Kick | | kick | |
-| Snare, head | | snare | |
-| Snare, rim shot | | snare | |
-| Snare, cross-stick | | snare | |
-| Toms (all) | | drop | |
-| Hi-hat closed | | hats | |
-| Hi-hat open | | hats | |
-| Hi-hat pedal | | drop | |
-| Ride (bow, edge) | | hats | |
-| Ride bell | | hats | |
-| Crash | | drop | |
+| Kick | 36 | kick | |
+| Snare, head | 38 | snare | |
+| Snare, rim shot | 40 | snare | |
+| Snare, cross-stick | 37 | snare | |
+| Toms (all) | 48, 50 (tom 1 head, rim); 45, 47 (tom 2 head, rim); 43, 58 (tom 3 head, rim) | drop | |
+| Hi-hat closed | 42 (bow), 22 (edge) | hats | |
+| Hi-hat open | 46 (bow), 26 (edge) | hats | |
+| Hi-hat pedal | 44 | drop | |
+| Ride (bow, edge) | 51 (bow), 59 (edge) | hats | |
+| Ride bell | 53 | hats | |
+| Crash | 49, 55 (crash 1 bow, edge); 57, 52 (crash 2 bow, edge) | drop | |
 
 **Notes for B:** apply this table before anything else. Dropped hits are removed from both the rhythm label and the fake beatbox, but they stay in the rendered drum audio so loops still sound natural.
 
-DECISION (open vs. closed hi-hat: same voice, or should open hats count as a different rhythm?):
+DECISION (open vs. closed hi-hat: same voice, or should open hats count as a different rhythm?): They should count as the same voice, because it's difficult to articulate open vs. closed hi-hat while beatboxing. 
 
 ---
 
@@ -55,7 +55,7 @@ These rules decide which loops count as a match. D builds the answer key from th
 
 **Half-time vs. double-time:**
 - Default: treat them as **different** rhythms, and only use tempos where the beat's intended feel is clear.
-- DECISION:
+- DECISION: They should be treated as different rhythms. 
 
 ---
 
@@ -81,7 +81,7 @@ These rules decide which loops count as a match. D builds the answer key from th
 | | | | | |
 
 - **Aim:** a varied set, so the model can't identify a match just by kit sound. Hold out a few kits of each type for testing only.
-- **Tempos:** default range 80–140 BPM. DECISION:
+- **Tempos:** default range 80–140 BPM. DECISION: 
 - **Level balancing:** default is to loudness-normalize each rendered loop and check that hats are clearly audible in every kit. DECISION:
 - **Velocity handling:** keep the performer's velocities, unless a kit has poor velocity layers. DECISION:
 - **Licensing:** if a kit comes from a commercial library, we release only MIDI and splits, never its rendered audio.

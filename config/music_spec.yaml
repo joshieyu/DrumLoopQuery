@@ -1,0 +1,91 @@
+# Musical constants for the whole project. Mirrors docs/music_spec.md.
+#
+# Owner: Member A (music lead). Load it through src/music/spec.py, never by hand,
+# and never copy these numbers into other code.
+#
+# Values are spec DEFAULTS unless their key is listed under `decided`.
+# When you change anything here, update docs/music_spec.md and its change log too,
+# and bump `version`.
+
+version: "0.1"
+
+# Dotted keys the music lead has signed off on. Everything else is a default.
+decided:
+  - drum_map.hihat_open                         # same voice as closed hats (spec §1)
+  - same_rhythm.half_time_double_time_different # spec §2
+
+# The rhythm voices, in grid row order.
+voices: [kick, snare, hats]
+
+# --- Spec §1: drum grouping --------------------------------------------------
+# GMD MIDI note -> voice, or `drop`. Note numbers are GMD's (Roland TD-11).
+# Dropped hits leave the rhythm label and the fake beatbox but stay in rendered audio.
+drum_map:
+  kick:              {notes: [36], group: kick}
+  snare_head:        {notes: [38], group: snare}
+  snare_rimshot:     {notes: [40], group: snare}
+  snare_cross_stick: {notes: [37], group: snare}
+  toms:              {notes: [48, 50, 45, 47, 43, 58], group: drop}
+  hihat_closed:      {notes: [42, 22], group: hats}
+  hihat_open:        {notes: [46, 26], group: hats}
+  hihat_pedal:       {notes: [44], group: drop}
+  ride:              {notes: [51, 59], group: hats}
+  ride_bell:         {notes: [53], group: hats}
+  crash:             {notes: [49, 55, 57, 52], group: drop}
+
+# --- Spec §2: what counts as the same rhythm ----------------------------------
+same_rhythm:
+  steps_per_beat: 12
+  # Hits with velocity below this are ignored. Either one number for every voice,
+  # or a mapping per voice, e.g. {kick: 30, snare: 40, hats: 25}.
+  ghost_velocity_below: 40
+  flam_merge_ms: 30                 # same-voice hits closer than this become one hit
+  swing_is_different: true          # swung and straight versions are different rhythms
+  half_time_double_time_different: true
+  min_hits_per_loop: {kick: 1, snare: 1}
+
+# --- Spec §3: cutting loops ----------------------------------------------------
+loops:
+  bars: 2
+  time_signatures: ["4-4"]          # GMD's info.csv format
+  start_on_downbeat: true
+  exclude_fills: true
+  exclude_count_ins_and_endings: true
+  max_loops_per_performance: null   # null = no limit
+  remove_duplicates: true
+
+# --- Spec §4: drum kits and rendering ------------------------------------------
+rendering:
+  tempo_bpm: [80, 140]
+  loudness_normalize: true
+  keep_performer_velocities: true
+  kits: []                          # filled in when kits are chosen
+
+# --- Spec §5: how people beatbox a beat ----------------------------------------
+beatbox:
+  avp_labels: [kd, sd, hhc, hho]    # AVP sound classes that may be used
+  simultaneous_priority: [kick, snare, hats]  # voice only the first of these
+  voice_ghost_notes: false
+  thin_16th_hats_to_8ths_prob: 0.5
+  voice_cymbals_and_toms: false
+  open_hat_sound: hho               # AVP label used where the drummer opened the hat
+  avp_subset: personal              # personal | fixed
+
+# --- Spec §6: realistic sloppiness (ranges are [low, high]) ----------------------
+sloppiness:
+  offset_ms: [-20, 20]              # steady rush or drag, same for the whole clip
+  jitter_ms: [0, 40]                # per-hit timing wobble
+  tempo_drift_pct: [0, 8]           # over the clip
+  swing_drift_per_bar: null         # spec says "small random change"; needs a number
+  drop_prob:
+    kick: [0, 0.05]
+    snare: [0, 0.05]
+    hats: [0, 0.4]
+  snr_db: [10, 40]
+  mic_eq: null                      # spec says "mild random EQ"; needs numbers
+
+# --- Spec §7: how people tap a beat ---------------------------------------------
+taps:
+  low: [kick]
+  high: [snare, hats]
+  simultaneous: low                 # one tap on this hand when both hands coincide
