@@ -1,0 +1,41 @@
+# --- Data, renders, and results (never committed; see CLAUDE.md hard rules) ---
+data/
+results/*
+!results/tables/
+
+# Audio of any kind, wherever it ends up
+*.wav
+*.aif
+*.aiff
+*.flac
+*.mp3
+*.ogg
+*.m4a
+
+# DAW projects (contain audio)
+*.logicx
+
+# Model checkpoints and embeddings
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.onnx
+*.npz
+*.npy
+
+# --- Python ---
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# --- Local / OS ---
+.DS_Store
+CLAUDE.local.md
+.claude/settings.local.json

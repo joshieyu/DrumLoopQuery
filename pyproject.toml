@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "drumloopquery"
+version = "0.1.0"
+description = "Hum a Beat, Find a Loop: drum-loop retrieval from beatboxed and tapped queries"
+requires-python = ">=3.11"
+# Light, cross-platform core. Heavy deps (torch, librosa, plugin hosts) get added
+# by the step that needs them, ideally as an optional extra.
+dependencies = [
+    "numpy>=2.0,<3",
+    "pandas>=2.2,<4",
+    "pretty_midi>=0.2.10,<0.3",
+    "soundfile>=0.12,<1",
+    "matplotlib>=3.8,<4",
+    "pyyaml>=6.0,<7",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[tool.setuptools.packages.find]
+include = ["src*", "tools*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["data", "results"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
