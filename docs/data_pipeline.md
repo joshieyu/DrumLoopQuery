@@ -1,4 +1,4 @@
-# Data pipeline: inspection and first raw clip
+# Data pipeline: MIDI clips and AVP sound index
 
 Owner: Member B (Junior). This documents the first pipeline steps added after the
 week 1 handoff. It does not replace the team plan or Joshua's music spec.
@@ -146,3 +146,80 @@ unimplemented shared interfaces. Do not substitute private labeling logic.
 Drum rendering, synthetic beatbox generation, final manifests, duplicate
 removal, and split-leakage checks are later checkpoints. This inspection does
 not claim that a dataset is ready for model training.
+
+## AVP sound index (implemented)
+
+AVP is the Amateur Vocal Percussion dataset: recordings of people imitating drum
+sounds with their mouths. The [official version 4 description](https://zenodo.org/records/5036529)
+documents onset and class annotations, Personal/Fixed modes, and both isolated
+sound repetitions and improvisations. The local file layout is handled by the
+existing `tools.inventory.avp.load_avp()` loader, reused without changing its
+interface. This index is a catalog, not a collection of newly cut audio samples.
+
+### Run and inspect
+
+Open `src/queries/index_avp.py` in the IDE and select **Run Python File**, using
+the project's `.venv` interpreter. The script has already been run on the local
+download. Terminal equivalent:
+
+```bash
+.venv/bin/python -m src.queries.index_avp
+```
+
+Generated files are under the gitignored `results/avp_index/` directory:
+
+| File | Purpose |
+|---|---|
+| `utterance_index.csv` | One row per usable annotated onset |
+| `annotation_issues.csv` | Exact source rows with validation or normalization issues |
+| `counts.csv` | Sound counts by participant, mode, recording kind, and label |
+| `summary.json` | Dataset root, source link, totals, and unresolved split/sample status |
+
+Open the index CSV to see the catalog; open the summary JSON for overall counts.
+Re-running replaces these four outputs. No audio is copied, edited, or combined.
+
+### Index fields
+
+| Field | Meaning |
+|---|---|
+| `utterance_id` | Relative annotation path plus one-based parsed CSV row; stable for unchanged source files |
+| `participant_id` | Source participant, such as `P3`; retained for future participant-disjoint splits |
+| `mode`, `kind` | Original Personal/Fixed mode and recording type, including Improvisation |
+| `label`, `sound_class` | Source class code (`kd`, `sd`, `hhc`, `hho`) and readable name |
+| `audio_path`, `annotation_path` | Paths relative to the AVP root recorded in `summary.json` |
+| `annotation_row` | One-based parsed annotation row; not a sample index into the audio |
+| `onset_s` | Annotated start time in seconds within the source recording |
+| `samplerate`, `channels`, `duration_s` | Source recording properties; duration is the whole file, not the individual sound |
+| `onset_phoneme`, `coda_phoneme` | Original optional mouth-sound annotations, retained when available |
+
+The index includes both modes and all recording kinds for exploration. It does
+not choose which sounds should be used for synthesis; that choice belongs to
+the music spec. There is deliberately no end-time or split column: neither
+sample boundaries nor participant split assignments have been decided here.
+
+### Validation and local results
+
+Whitespace around valid labels is removed and logged; blank/unknown labels,
+nonfinite or out-of-range onsets, and all rows sharing a duplicate onset within
+one recording are excluded and logged. Missing companion annotation files are
+reported. Missing roots, empty inputs, malformed CSVs, or unreadable audio fail
+with an error rather than producing an apparently complete catalog.
+
+The local run produced 9,776 indexed annotations from 9,778 loaded annotation
+rows, across 280 recordings and 28 participants. Three labels required whitespace
+trimming. One blank label and one onset outside its audio were excluded; no
+annotation files were missing. These are measured local counts, rather than
+the publication's headline total or a reproduction of the older handoff counts.
+Consult `annotation_issues.csv` for the exact affected rows.
+
+`tests/test_avp_index.py` uses tiny generated recordings to check source identity,
+stable identifiers, whitespace normalization, invalid labels/onsets, missing
+annotations, duplicate onsets, and unchanged original audio bytes.
+
+### What this enables next
+
+A future generator can select, for example, a kick annotation from one participant
+and locate it in the source WAV. Before extracting samples, define the end-time
+and decay policy with Joshua. Before training, assign participant-disjoint splits
+and select the approved mode/recording kinds. Cataloging everyone together is
+not permission to use everyone's sounds for training.
