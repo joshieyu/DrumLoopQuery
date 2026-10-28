@@ -85,13 +85,35 @@ def test_section_2_to_4_decisions():
         assert spec.is_decided(key), key
 
 
+def test_2026_10_28_decisions():
+    spec = load_spec()
+    sr, lp, bb = spec.same_rhythm, spec.loops, spec.beatbox
+    assert (sr.match, sr.flam_keep) == ("exact", "loudest")
+    assert (lp.boundary, lp.hop_bars) == ("nearest_step", 2)
+    assert spec.rendering.max_tempo_change_pct == 20
+    assert bb.avp_modes == ("personal", "fixed")
+    assert bb.avp_recordings == ("isolated", "improvisation")
+    assert (bb.sound_end.below_peak_db, bb.sound_end.max_ms, bb.sound_end.fade_ms) == (30, 500, 10)
+    assert bb.sound_end.stop_at_next_onset is True
+    assert bb.skip_velocity_below == {"kick": 0, "snare": 10, "hats": 0}
+    assert (bb.open_hat_sound, bb.hats_sound) == ("hho", "hhc")
+    assert (spec.taps.low, spec.taps.high, spec.taps.simultaneous) == (
+        ("kick",),
+        ("snare", "hats"),
+        "low",
+    )
+
+
 def test_open_questions_stay_open():
     spec = load_spec()
-    assert spec.same_rhythm.flam_keep is None
-    assert spec.loops.hop_bars is None
-    assert spec.rendering.max_tempo_change_pct is None
-    for key in ["same_rhythm.flam_keep", "loops.hop_bars", "rendering.max_tempo_change_pct"]:
-        assert key in spec.undecided()
+    assert spec.rendering.kits == ()
+    assert spec.sloppiness.swing_drift_per_bar is None
+    assert spec.sloppiness.mic_eq is None
+    assert set(spec.undecided()) == {
+        "rendering.kits",
+        "sloppiness.swing_drift_per_bar",
+        "sloppiness.mic_eq",
+    }
 
 
 def test_voice_of_drops_and_rejects_unknown_notes():
@@ -120,7 +142,7 @@ def test_per_voice_ghost_thresholds(raw):
 def test_undecided_lists_defaults_only():
     spec = load_spec()
     undecided = spec.undecided()
-    assert "beatbox.avp_subset" in undecided
+    assert "rendering.kits" in undecided
     assert "same_rhythm.steps_per_beat" not in undecided
     assert "drum_map.hihat_open" not in undecided
     assert all(spec.is_decided(u) == (u not in undecided) for u in spec.units)
@@ -151,6 +173,16 @@ def test_undecided_lists_defaults_only():
         (lambda r: r["loops"].update(start_at_first_bar_with=["toms"]), "not one of"),
         (lambda r: r["loops"].update(performance_tempo_bpm=[160, 70]), "above high"),
         (lambda r: r["rendering"].update(max_tempo_change_pct=-5), "outside"),
+        (lambda r: r["same_rhythm"].update(match="near"), "not one of"),
+        (lambda r: r["loops"].update(boundary="rounded"), "not one of"),
+        (lambda r: r["beatbox"].update(avp_modes=["personal", "both"]), "not one of"),
+        (lambda r: r["beatbox"].update(avp_recordings=[]), "at least one"),
+        (lambda r: r["beatbox"].update(avp_recordings=["live"]), "not one of"),
+        (lambda r: r["beatbox"].update(hats_sound="hh"), "not one of"),
+        (lambda r: r["beatbox"].update(skip_velocity_below={"snare": 40}), "missing"),
+        (lambda r: r["beatbox"]["sound_end"].update(fade_ms=-1), "outside"),
+        (lambda r: r["beatbox"]["sound_end"].update(fade_ms=600), "longer than max_ms"),
+        (lambda r: r["beatbox"]["sound_end"].pop("max_ms"), "missing key"),
     ],
 )
 def test_invalid_specs_are_rejected(raw, edit, message):

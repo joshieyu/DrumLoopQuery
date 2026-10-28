@@ -1,10 +1,9 @@
 """The "same rhythm" function: a MIDI clip plus the spec in, a quantized voice grid out.
 
-Interface first, so B (loop cutting, manifests) and D (answer key) can code against it
-while the spec §2 decisions are still open:
+Interface first, so B (loop cutting, manifests) and D (answer key) can code against it:
 
-- `clip_grid` and `dualize` have their final signatures but raise NotImplementedError
-  until the music lead settles the grid, ghost-note, flam, and swing rules.
+- `clip_grid` and `dualize` have their final signatures, and the rules they follow are
+  decided (spec §2, §3, §7; 2026-10-28). They raise NotImplementedError until built.
 - `Grid` and `pattern_id` are final. Two clips share a pattern ID exactly when their grids
   are identical, and the ID is the same on every machine and Python version.
 
@@ -94,22 +93,32 @@ class Grid:
 def clip_grid(notes: Sequence[Note], bpm: float, spec: MusicSpec) -> Grid:
     """Turn one clip's MIDI hits into its quantized voice grid.
 
-    Applies, in order and with every constant from `spec`: the drum map (spec §1),
-    ghost-note removal, flam merging (needs `bpm`, since the window is in ms), and
-    quantizing to `spec.same_rhythm.steps_per_beat` (spec §2). The clip is
-    `spec.loops.bars` bars long. Returns a Grid with rows in `spec.voices` order.
+    Applies, in order and with every constant from `spec`:
 
-    Not implemented until the spec §2 decisions are in.
+    1. The drum map (spec §1): each pitch becomes a voice; dropped pitches go.
+    2. Ghost notes: hits below `spec.ghost_threshold(voice)` go.
+    3. Flams: same-voice hits closer than `same_rhythm.flam_merge_ms` (converted with
+       `bpm`) become one hit at the time of the hit `same_rhythm.flam_keep` picks
+       ("loudest": the loudest hit, the earlier one on a tie).
+    4. Quantizing: each hit moves to its nearest step at `same_rhythm.steps_per_beat`.
+       With `loops.boundary` "nearest_step", hits that round outside the clip belong to
+       a neighbouring clip and are ignored, so pass every hit from half a step before
+       the clip's first downbeat up to its end.
+
+    The clip is `spec.loops.bars` bars long. Returns a Grid with rows in `spec.voices`
+    order. Two clips are the same rhythm when their grids are equal
+    (`same_rhythm.match` "exact").
     """
-    raise NotImplementedError("clip_grid waits for the music spec §2 decisions")
+    raise NotImplementedError("clip_grid is not built yet; its rules are in music spec §2-3")
 
 
 def dualize(grid: Grid, spec: MusicSpec) -> Grid:
     """Reduce a voice grid to the two tap hands (spec §7): rows ("low", "high").
 
-    Not implemented until the spec §7 rules are confirmed.
+    `spec.taps.low` voices go to "low" and `spec.taps.high` voices to "high". When both
+    hands have a hit on the same step, only the `spec.taps.simultaneous` hand keeps it.
     """
-    raise NotImplementedError("dualize waits for the music spec §7 decisions")
+    raise NotImplementedError("dualize is not built yet; its rules are in music spec §7")
 
 
 def pattern_id(grid: Grid) -> str:

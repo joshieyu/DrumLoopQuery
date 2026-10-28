@@ -1,7 +1,7 @@
 # Music Spec
 
-**Owner:** Member A, music lead (`[Member A Name]`)
-**Status:** v0 template. Share v1 by the end of week 1.
+**Owner:** Member A, music lead (Joshua Yu)
+**Status:** v0.3 (2026-10-28), matching `config/music_spec.yaml` version 0.3. §1–7 decided except the kit list, swing drift, mic coloration, and tap sounds. §5–7 values are provisional until the §9 listening checks.
 
 ## How to use this document
 
@@ -50,12 +50,17 @@ These rules decide which loops count as a match. D builds the answer key from th
 | Timing grid | 12 steps per beat (fits straight 16ths and triplets) | Yes |
 | Ghost notes | Ignore hits with velocity below **40** (check by ear across a few kits) | Ignore below 15 |
 | Flams | Merge hits of the same voice closer than **30 ms** into one hit | Yes |
+| Flam timing | — | The merged hit takes the **loudest** hit's timing (the earlier one on a tie) |
 | Swing | Swung and straight versions of a beat are **different** rhythms | Yes |
 | Minimum content | A loop needs at least one kick and one snare to be kept | Yes |
 
 **Half-time vs. double-time:**
 - Default: treat them as **different** rhythms, and only use tempos where the beat's intended feel is clear.
 - DECISION: They should be treated as different rhythms. 
+
+**How close counts as a match:**
+- With the rules above, almost every loop has its own grid (about 99.8% unique), so a match is mostly the same loop on another kit, at another tempo, or performed by another voice.
+- DECISION: Exact. Two loops are the same rhythm only when their grids are identical (same pattern ID), as README §5.4 says. D scores near misses (how many hits off) separately; they don't count as matches.
 
 ---
 
@@ -66,8 +71,10 @@ These rules decide which loops count as a match. D builds the answer key from th
 | Length | 2 bars | Yes |
 | Time signature | 4/4 only | Yes |
 | Start point | Always on a downbeat | Yes |
+| Hits near a bar line | — | A hit belongs to the bar its nearest grid step falls in, so a downbeat played a little early stays the downbeat |
 | Fills | Excluded (use GMD's beat/fill labels, then spot-check) | Yes |
 | Count-ins and endings | Excluded | Excluded, start at first bar that has kick and snare; drop the last bar |
+| Spacing | — | A new loop every 2 bars (bars 1–2, 3–4, …), never overlapping |
 | Loops per performance | No limit, but duplicates removed | Yes, within one performance |
 
 ---
@@ -81,7 +88,9 @@ These rules decide which loops count as a match. D builds the answer key from th
 | | | | | |
 
 - **Aim:** a varied set, so the model can't identify a match just by kit sound. Hold out a few kits of each type for testing only.
+- **Kit sources:** DECISION: Freely licensed multisampled kits, rendered by a small Python sampler, are the backbone. Each kit's license is checked before use, and their audio may be released. A drum VST adds extra kits (good candidates for held-out test kits), rendered on A's Mac; its audio stays internal. E-GMD audio is optional later. A auditions the kits and assigns train/test here.
 - **Tempos:** default range 80–140 BPM. DECISION: Expand range to 70-160 bpm, remove performances outside
+- **Tempo change:** how far from its recorded tempo a loop may be rendered. DECISION: within ±20%, inside 70–160 BPM. Provisional: check one groove at ±10/20/30% by ear once a kit renders.
 - **Level balancing:** default is to loudness-normalize each rendered loop and check that hats are clearly audible in every kit. DECISION: Yes. 
 - **Velocity handling:** keep the performer's velocities, unless a kit has poor velocity layers. DECISION: Yes.
 - **Licensing:** if a kit comes from a commercial library, we release only MIDI and splits, never its rendered audio.
@@ -94,14 +103,17 @@ Real amateurs don't voice every hit. B's generator applies these rules before pl
 
 | Rule | Default | DECISION |
 |---|---|---|
-| Voices used | kick, snare, closed hi-hat, open hi-hat (the AVP sound types) | |
-| Hits at the same moment | Voice only one sound, with priority **kick > snare > hats** | |
-| Ghost notes | Never voiced | |
-| Busy hats | If hats play 16ths, thin to 8ths with probability **0.5** | |
-| Cymbals and toms | Never voiced | |
-| Open hi-hat | Voice with the AVP open-hat sound | |
+| Voices used | kick, snare, closed hi-hat, open hi-hat (the AVP sound types) | Yes |
+| Hits at the same moment | Voice only one sound, with priority **kick > snare > hats** | Yes |
+| Ghost notes | Never voiced | Skip snare hits below velocity **10**; kick and hats are always voiced. Snares down to 10 still sound intentional. The label already ignores hits below 15 (§2), so for now every labelled hit is voiced. |
+| Busy hats | If hats play 16ths, thin to 8ths with probability **0.5** | Yes |
+| Cymbals and toms | Never voiced | Yes |
+| Open hi-hat | Voice with the AVP open-hat sound | Yes |
+| Other hats hits | — | Closed, pedal, ride, and ride bell all use the AVP closed-hat sound |
 
-**Mouth sounds:** use AVP's "personal" recordings first, where people chose their own sounds. DECISION:
+**Mouth sounds:** use AVP's "personal" recordings first, where people chose their own sounds. DECISION: Use Personal and Fixed, both the single-sound takes and the improvisations (all 9,776 usable sounds). Each fake recording uses one participant's sounds from one mode.
+
+**Where a mouth sound ends:** AVP only marks where each sound starts. DECISION: A sound ends where its level falls 30 dB below its peak, at the next annotated sound, or after 500 ms, whichever comes first, then fades out over 10 ms. (Measured: the median sound decays 30 dB in 160–275 ms, and 29% of improvisation sounds are still ringing when the next one starts.)
 
 ---
 
@@ -111,13 +123,13 @@ Each fake beatbox recording gets a random amount of each effect within these ran
 
 | Effect | Default range | What it models | DECISION |
 |---|---|---|---|
-| Steady rush or drag | −20 to +20 ms, same for the whole clip | Playing consistently ahead of or behind the beat | |
-| Per-hit timing wobble | 0 to 40 ms | Imprecise timing on individual hits | |
-| Tempo drift | 0 to 8% over the clip | Slowly speeding up or slowing down | |
-| Swing drift | small random change in swing amount per bar | Inconsistent swing feel | |
-| Dropped hits | kick 0–0.05, snare 0–0.05, hats 0–0.4 probability | Forgetting or skipping hits | |
-| Background noise | 10 to 40 dB SNR | Room and laptop noise | |
-| Mic coloration | mild random EQ | Different laptop mics | |
+| Steady rush or drag | −20 to +20 ms, same for the whole clip | Playing consistently ahead of or behind the beat | Yes (provisional) |
+| Per-hit timing wobble | 0 to 40 ms | Imprecise timing on individual hits | Yes (provisional) |
+| Tempo drift | 0 to 8% over the clip | Slowly speeding up or slowing down | Yes (provisional) |
+| Swing drift | small random change in swing amount per bar | Inconsistent swing feel | Off until A has listened |
+| Dropped hits | kick 0–0.05, snare 0–0.05, hats 0–0.4 probability | Forgetting or skipping hits | Yes (provisional) |
+| Background noise | 10 to 40 dB SNR | Room and laptop noise | Yes (provisional) |
+| Mic coloration | mild random EQ | Different laptop mics | Off until A has listened |
 
 These ranges are guesses. A should listen to a handful of fake recordings next to real AVP improvisations and adjust until they sound similar.
 
@@ -129,9 +141,9 @@ Taps have only two "hands": low and high.
 
 | Rule | Default | DECISION |
 |---|---|---|
-| Low hand | kick | |
-| High hand | snare and hats merged | |
-| Hits at the same moment | One tap on the low hand | |
+| Low hand | kick | Yes (provisional) |
+| High hand | snare and hats merged | Yes (provisional) |
+| Hits at the same moment | One tap on the low hand | Yes (provisional) |
 | Tap sounds | Recorded desk knocks, two different sounds | |
 
 After the first version works, compare these rules against how the drummers in TapTamDrum actually tapped, and note the main differences here.
@@ -169,4 +181,5 @@ After the first version works, compare these rules against how the drummers in T
 
 | Date | Change | Why | Who was told |
 |---|---|---|---|
-| | | | |
+| 2026-10-20 | §1–4 decided (spec v0.2) | First version for the team call | Team call |
+| 2026-10-28 | Decided: exact matching; flam timing from the loudest hit; hits near a bar line join their nearest step's bar; a new loop every 2 bars; renders within ±20% of the recorded tempo; kit sources; §5 mouth-sound choice and cut-off, snares below velocity 10 not voiced (none reach the beatbox while the label floor is 15), other hats use the closed-hat sound; §5–7 defaults approved as provisional (spec v0.3) | B's questions; unblocks `clip_grid()`, the loop cutter, the beatbox generator, and D's answer key | B |

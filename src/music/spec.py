@@ -5,8 +5,8 @@
     spec = load_spec()
     spec.voice_of(38)                   # 'snare'; None for dropped notes
     spec.same_rhythm.steps_per_beat     # 12
-    spec.ghost_threshold("hats")        # 40
-    spec.is_decided("same_rhythm.steps_per_beat")  # False: still a spec default
+    spec.ghost_threshold("hats")        # 15
+    spec.is_decided("same_rhythm.steps_per_beat")  # True: signed off by the music lead
 
 Loading fails with SpecError on unknown or missing keys, notes mapped twice, voices that
 don't line up across sections, and out-of-range values, so a typo in the YAML can't
@@ -25,8 +25,11 @@ import yaml
 DEFAULT_PATH = Path(__file__).resolve().parents[2] / "config" / "music_spec.yaml"
 DROP = "drop"
 AVP_LABELS = ("kd", "sd", "hhc", "hho")  # the AVP dataset's four sound classes
-AVP_SUBSETS = ("personal", "fixed")
+AVP_MODES = ("personal", "fixed")  # AVP imitation modes
+AVP_RECORDINGS = ("isolated", "improvisation")  # single-sound takes vs. improvisations
 FLAM_KEEP = ("first", "loudest")
+MATCH_RULES = ("exact",)  # how grids compare; near-match rules would join this list
+BOUNDARIES = ("nearest_step", "raw")
 
 Range = tuple[float, float]
 
@@ -50,6 +53,7 @@ class SameRhythm:
     swing_is_different: bool
     half_time_double_time_different: bool
     min_hits_per_loop: dict[str, int]
+    match: str  # "exact": same rhythm means identical grids
 
 
 @dataclass(frozen=True)
@@ -57,6 +61,7 @@ class Loops:
     bars: int
     time_signatures: tuple[str, ...]
     start_on_downbeat: bool
+    boundary: str  # which loop a hit near a bar line joins: "nearest_step" or "raw"
     exclude_fills: bool
     start_at_first_bar_with: tuple[str, ...]  # voices; skips count-ins
     drop_last_bars: int  # skips endings
@@ -76,14 +81,27 @@ class Rendering:
 
 
 @dataclass(frozen=True)
+class SoundEnd:
+    """Where a mouth sound cut from AVP ends; AVP only marks where it starts."""
+
+    below_peak_db: float  # ends once its level falls this far under its peak
+    max_ms: float
+    fade_ms: float
+    stop_at_next_onset: bool
+
+
+@dataclass(frozen=True)
 class Beatbox:
     avp_labels: tuple[str, ...]
+    avp_modes: tuple[str, ...]
+    avp_recordings: tuple[str, ...]
+    sound_end: SoundEnd
     simultaneous_priority: tuple[str, ...]
-    voice_ghost_notes: bool
+    skip_velocity_below: dict[str, int]  # one entry per voice; 0 voices every labelled hit
     thin_16th_hats_to_8ths_prob: float
     voice_cymbals_and_toms: bool
-    open_hat_sound: str
-    avp_subset: str
+    open_hat_sound: str  # for drum_map.hihat_open notes
+    hats_sound: str  # for every other hats note
 
 
 @dataclass(frozen=True)
@@ -286,6 +304,7 @@ def parse_spec(raw: Any, path: Path = DEFAULT_PATH) -> MusicSpec:
             )
             for k, n in min_hits.items()
         },
+        match=_choice(s["match"], MATCH_RULES, "same_rhythm.match"),
     )
 
     lp = _keys(raw["loops"], [f.name for f in Loops.__dataclass_fields__.values()], "loops")
@@ -299,6 +318,7 @@ def parse_spec(raw: Any, path: Path = DEFAULT_PATH) -> MusicSpec:
         bars=_int(lp["bars"], "loops.bars", 1),
         time_signatures=sigs,
         start_on_downbeat=_bool(lp["start_on_downbeat"], "loops.start_on_downbeat"),
+        boundary=_choice(lp["boundary"], BOUNDARIES, "loops.boundary"),
         exclude_fills=_bool(lp["exclude_fills"], "loops.exclude_fills"),
         start_at_first_bar_with=_str_list(
             lp["start_at_first_bar_with"], "loops.start_at_first_bar_with", voices
@@ -339,16 +359,39 @@ def parse_spec(raw: Any, path: Path = DEFAULT_PATH) -> MusicSpec:
     priority = _str_list(b["simultaneous_priority"], "beatbox.simultaneous_priority", voices)
     if set(priority) != set(voices):
         raise SpecError(f"beatbox.simultaneous_priority: must list every voice {list(voices)}")
+    modes = _str_list(b["avp_modes"], "beatbox.avp_modes", AVP_MODES)
+    recordings = _str_list(b["avp_recordings"], "beatbox.avp_recordings", AVP_RECORDINGS)
+    for name, picked in [("avp_modes", modes), ("avp_recordings", recordings)]:
+        if not picked:
+            raise SpecError(f"beatbox.{name}: pick at least one")
+    end_keys = [f.name for f in SoundEnd.__dataclass_fields__.values()]
+    e = _keys(b["sound_end"], end_keys, "beatbox.sound_end")
+    sound_end = SoundEnd(
+        below_peak_db=_num(e["below_peak_db"], "beatbox.sound_end.below_peak_db", 0),
+        max_ms=_num(e["max_ms"], "beatbox.sound_end.max_ms", 1),
+        fade_ms=_num(e["fade_ms"], "beatbox.sound_end.fade_ms", 0),
+        stop_at_next_onset=_bool(e["stop_at_next_onset"], "beatbox.sound_end.stop_at_next_onset"),
+    )
+    if sound_end.fade_ms > sound_end.max_ms:
+        raise SpecError("beatbox.sound_end: fade_ms is longer than max_ms")
     beatbox = Beatbox(
         avp_labels=avp_labels,
+        avp_modes=modes,
+        avp_recordings=recordings,
+        sound_end=sound_end,
         simultaneous_priority=priority,
-        voice_ghost_notes=_bool(b["voice_ghost_notes"], "beatbox.voice_ghost_notes"),
+        skip_velocity_below=_per_voice(
+            b["skip_velocity_below"],
+            voices,
+            "beatbox.skip_velocity_below",
+            lambda x, w: _int(x, w, 0, 128),
+        ),
         thin_16th_hats_to_8ths_prob=_num(
             b["thin_16th_hats_to_8ths_prob"], "beatbox.thin_16th_hats_to_8ths_prob", 0, 1
         ),
         voice_cymbals_and_toms=_bool(b["voice_cymbals_and_toms"], "beatbox.voice_cymbals_and_toms"),
         open_hat_sound=_choice(b["open_hat_sound"], avp_labels, "beatbox.open_hat_sound"),
-        avp_subset=_choice(b["avp_subset"], AVP_SUBSETS, "beatbox.avp_subset"),
+        hats_sound=_choice(b["hats_sound"], avp_labels, "beatbox.hats_sound"),
     )
 
     sl = _keys(

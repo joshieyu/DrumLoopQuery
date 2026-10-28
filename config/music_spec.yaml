@@ -7,7 +7,7 @@
 # When you change anything here, update docs/music_spec.md and its change log too,
 # and bump `version`.
 
-version: "0.2"
+version: "0.3"
 
 # Dotted keys the music lead has signed off on. Everything else is a default,
 # and `null` means the spec has no answer yet.
@@ -16,21 +16,45 @@ decided:
   - same_rhythm.steps_per_beat
   - same_rhythm.ghost_velocity_below
   - same_rhythm.flam_merge_ms
+  - same_rhythm.flam_keep                       # 2026-10-28
   - same_rhythm.swing_is_different
   - same_rhythm.half_time_double_time_different
   - same_rhythm.min_hits_per_loop
+  - same_rhythm.match                           # 2026-10-28
   - loops.bars
   - loops.time_signatures
   - loops.start_on_downbeat
+  - loops.boundary                              # 2026-10-28
   - loops.exclude_fills
   - loops.start_at_first_bar_with
   - loops.drop_last_bars
   - loops.performance_tempo_bpm
+  - loops.hop_bars                              # 2026-10-28
   - loops.max_loops_per_performance
   - loops.remove_duplicates_within_performance
   - rendering.tempo_bpm
+  - rendering.max_tempo_change_pct              # 2026-10-28, check by ear once a kit renders
   - rendering.loudness_normalize
   - rendering.keep_performer_velocities
+  # 2026-10-28: spec §5-7, provisional until the §9 listening checks.
+  - beatbox.avp_labels
+  - beatbox.avp_modes
+  - beatbox.avp_recordings
+  - beatbox.sound_end
+  - beatbox.simultaneous_priority
+  - beatbox.skip_velocity_below
+  - beatbox.thin_16th_hats_to_8ths_prob
+  - beatbox.voice_cymbals_and_toms
+  - beatbox.open_hat_sound
+  - beatbox.hats_sound
+  - sloppiness.offset_ms
+  - sloppiness.jitter_ms
+  - sloppiness.tempo_drift_pct
+  - sloppiness.drop_prob
+  - sloppiness.snr_db
+  - taps.low
+  - taps.high
+  - taps.simultaneous
 
 # The rhythm voices, in grid row order.
 voices: [kick, snare, hats]
@@ -58,43 +82,57 @@ same_rhythm:
   # or a mapping per voice, e.g. {kick: 30, snare: 40, hats: 25}.
   ghost_velocity_below: 15
   flam_merge_ms: 30                 # same-voice hits closer than this become one hit
-  flam_keep: null                   # open: which merged hit's timing survives, first | loudest
+  flam_keep: loudest                # the merged hit takes the loudest hit's timing; ties: the earlier
   swing_is_different: true          # swung and straight versions are different rhythms
   half_time_double_time_different: true
   min_hits_per_loop: {kick: 1, snare: 1}
+  # Two clips are the same rhythm only when their grids are identical (same pattern_id).
+  # Near misses are scored separately by D, not counted as matches.
+  match: exact
 
 # --- Spec §3: cutting loops ----------------------------------------------------
 loops:
   bars: 2
   time_signatures: ["4-4"]          # GMD's info.csv format
   start_on_downbeat: true
+  # Which loop a hit near a bar line belongs to. nearest_step: the bar its nearest grid
+  # step falls in, so a downbeat played a little early stays the downbeat. raw: its time.
+  boundary: nearest_step
   exclude_fills: true               # GMD beat_type == fill
   start_at_first_bar_with: [kick, snare]  # skips count-ins
   drop_last_bars: 1                 # skips endings
   performance_tempo_bpm: [70, 160]  # leave out performances recorded outside this
-  hop_bars: null                    # open: start a new loop every 1 or every 2 bars
+  hop_bars: 2                       # bars 1-2, 3-4, ...: loops never overlap
   max_loops_per_performance: null   # null = no limit
   remove_duplicates_within_performance: true
 
 # --- Spec §4: drum kits and rendering ------------------------------------------
 rendering:
   tempo_bpm: [70, 160]
-  max_tempo_change_pct: null        # open: how far from its original tempo a loop may be rendered
+  max_tempo_change_pct: 20          # render within ±20% of the recorded tempo, inside tempo_bpm
   loudness_normalize: true
   keep_performer_velocities: true
   kits: []                          # filled in when kits are chosen
 
 # --- Spec §5: how people beatbox a beat ----------------------------------------
+# One fake query uses one participant's sounds from one mode.
 beatbox:
   avp_labels: [kd, sd, hhc, hho]    # AVP sound classes that may be used
+  avp_modes: [personal, fixed]      # AVP imitation modes to draw sounds from
+  avp_recordings: [isolated, improvisation]  # single-sound takes and/or improvisations
+  # AVP marks only where a sound starts. It ends where its level falls `below_peak_db`
+  # under its peak, or at the next annotated sound if `stop_at_next_onset`, or after
+  # `max_ms`, whichever comes first, then fades out over `fade_ms`.
+  sound_end: {below_peak_db: 30, max_ms: 500, fade_ms: 10, stop_at_next_onset: true}
   simultaneous_priority: [kick, snare, hats]  # voice only the first of these
-  voice_ghost_notes: false
+  skip_velocity_below: {kick: 0, snare: 10, hats: 0}  # labelled hits too soft to voice
   thin_16th_hats_to_8ths_prob: 0.5
   voice_cymbals_and_toms: false
-  open_hat_sound: hho               # AVP label used where the drummer opened the hat
-  avp_subset: personal              # personal | fixed
+  open_hat_sound: hho               # for drum_map.hihat_open notes
+  hats_sound: hhc                   # for every other hats note (closed, pedal, ride, bell)
 
 # --- Spec §6: realistic sloppiness (ranges are [low, high]) ----------------------
+# null = off until the music lead has listened.
 sloppiness:
   offset_ms: [-20, 20]              # steady rush or drag, same for the whole clip
   jitter_ms: [0, 40]                # per-hit timing wobble
