@@ -50,10 +50,13 @@ class SameRhythm:
     ghost_velocity_below: dict[str, int]  # one entry per voice
     flam_merge_ms: float
     flam_keep: str | None  # "first" or "loudest"; None until the spec decides
+    flam_chain: bool  # True: a run of close hits merges as one, not just pairs
     swing_is_different: bool
     half_time_double_time_different: bool
     min_hits_per_loop: dict[str, int]
     match: str  # "exact": same rhythm means identical grids
+    # Subdivisions per beat, simplest first; decides exact midpoints between two steps.
+    midpoint_priority: tuple[tuple[int, ...], ...]
 
 
 @dataclass(frozen=True)
@@ -253,6 +256,20 @@ def _drum_map(raw: Any, voices: tuple[str, ...]) -> dict[str, DrumGroup]:
     return out
 
 
+def _midpoint_priority(v: Any, steps_per_beat: int) -> tuple[tuple[int, ...], ...]:
+    where = "same_rhythm.midpoint_priority"
+    if not isinstance(v, list) or not all(isinstance(g, list) and g for g in v):
+        raise SpecError(f"{where}: expected a list of non-empty lists, got {v!r}")
+    groups = tuple(tuple(_int(n, where, 1) for n in g) for g in v)
+    flat = [n for g in groups for n in g]
+    if len(set(flat)) != len(flat):
+        raise SpecError(f"{where}: a subdivision appears twice in {v}")
+    bad = [n for n in flat if steps_per_beat % n]
+    if bad:
+        raise SpecError(f"{where}: {bad} don't divide steps_per_beat {steps_per_beat}")
+    return groups
+
+
 def _exists(raw: dict, dotted: str) -> bool:
     node: Any = raw
     for part in dotted.split("."):
@@ -285,8 +302,10 @@ def parse_spec(raw: Any, path: Path = DEFAULT_PATH) -> MusicSpec:
     min_hits = s["min_hits_per_loop"]
     if not isinstance(min_hits, dict):
         raise SpecError("same_rhythm.min_hits_per_loop: expected a mapping of voice to count")
+    steps_per_beat = _int(s["steps_per_beat"], "same_rhythm.steps_per_beat", 1)
+    midpoint_priority = _midpoint_priority(s["midpoint_priority"], steps_per_beat)
     same_rhythm = SameRhythm(
-        steps_per_beat=_int(s["steps_per_beat"], "same_rhythm.steps_per_beat", 1),
+        steps_per_beat=steps_per_beat,
         ghost_velocity_below=_per_voice(
             ghost, voices, "same_rhythm.ghost_velocity_below", lambda x, w: _int(x, w, 0, 128)
         ),
@@ -294,6 +313,7 @@ def parse_spec(raw: Any, path: Path = DEFAULT_PATH) -> MusicSpec:
         flam_keep=None
         if s["flam_keep"] is None
         else _choice(s["flam_keep"], FLAM_KEEP, "same_rhythm.flam_keep"),
+        flam_chain=_bool(s["flam_chain"], "same_rhythm.flam_chain"),
         swing_is_different=_bool(s["swing_is_different"], "same_rhythm.swing_is_different"),
         half_time_double_time_different=_bool(
             s["half_time_double_time_different"], "same_rhythm.half_time_double_time_different"
@@ -305,6 +325,7 @@ def parse_spec(raw: Any, path: Path = DEFAULT_PATH) -> MusicSpec:
             for k, n in min_hits.items()
         },
         match=_choice(s["match"], MATCH_RULES, "same_rhythm.match"),
+        midpoint_priority=midpoint_priority,
     )
 
     lp = _keys(raw["loops"], [f.name for f in Loops.__dataclass_fields__.values()], "loops")

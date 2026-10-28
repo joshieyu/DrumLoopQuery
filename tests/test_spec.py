@@ -88,7 +88,8 @@ def test_section_2_to_4_decisions():
 def test_2026_10_28_decisions():
     spec = load_spec()
     sr, lp, bb = spec.same_rhythm, spec.loops, spec.beatbox
-    assert (sr.match, sr.flam_keep) == ("exact", "loudest")
+    assert (sr.match, sr.flam_keep, sr.flam_chain) == ("exact", "loudest", True)
+    assert sr.midpoint_priority == ((1,), (2,), (3, 4))
     assert (lp.boundary, lp.hop_bars) == ("nearest_step", 2)
     assert spec.rendering.max_tempo_change_pct == 20
     assert bb.avp_modes == ("personal", "fixed")
@@ -174,6 +175,11 @@ def test_undecided_lists_defaults_only():
         (lambda r: r["loops"].update(performance_tempo_bpm=[160, 70]), "above high"),
         (lambda r: r["rendering"].update(max_tempo_change_pct=-5), "outside"),
         (lambda r: r["same_rhythm"].update(match="near"), "not one of"),
+        (lambda r: r["same_rhythm"].update(flam_chain="yes"), "true or false"),
+        (lambda r: r["same_rhythm"].update(midpoint_priority=[[1], [5]]), "don't divide"),
+        (lambda r: r["same_rhythm"].update(midpoint_priority=[[1], [1, 2]]), "appears twice"),
+        (lambda r: r["same_rhythm"].update(midpoint_priority=[[1], []]), "non-empty"),
+        (lambda r: r["same_rhythm"].update(midpoint_priority=[[0]]), "outside"),
         (lambda r: r["loops"].update(boundary="rounded"), "not one of"),
         (lambda r: r["beatbox"].update(avp_modes=["personal", "both"]), "not one of"),
         (lambda r: r["beatbox"].update(avp_recordings=[]), "at least one"),

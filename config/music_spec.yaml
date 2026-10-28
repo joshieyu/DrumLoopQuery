@@ -7,7 +7,7 @@
 # When you change anything here, update docs/music_spec.md and its change log too,
 # and bump `version`.
 
-version: "0.3"
+version: "0.4"
 
 # Dotted keys the music lead has signed off on. Everything else is a default,
 # and `null` means the spec has no answer yet.
@@ -17,6 +17,8 @@ decided:
   - same_rhythm.ghost_velocity_below
   - same_rhythm.flam_merge_ms
   - same_rhythm.flam_keep                       # 2026-10-28
+  - same_rhythm.flam_chain                      # 2026-10-28
+  - same_rhythm.midpoint_priority               # 2026-10-28
   - same_rhythm.swing_is_different
   - same_rhythm.half_time_double_time_different
   - same_rhythm.min_hits_per_loop
@@ -83,6 +85,10 @@ same_rhythm:
   ghost_velocity_below: 15
   flam_merge_ms: 30                 # same-voice hits closer than this become one hit
   flam_keep: loudest                # the merged hit takes the loudest hit's timing; ties: the earlier
+  flam_chain: true                  # a run of hits, each closer than flam_merge_ms to the next, is one hit
+  # A hit exactly halfway between two steps goes to the simpler position. Subdivisions
+  # per beat, simplest first: beat, 8th, then 16th or triplet. Equal ranks: the later step.
+  midpoint_priority: [[1], [2], [3, 4]]
   swing_is_different: true          # swung and straight versions are different rhythms
   half_time_double_time_different: true
   min_hits_per_loop: {kick: 1, snare: 1}

@@ -1,7 +1,7 @@
 # Music Spec
 
 **Owner:** Member A, music lead (Joshua Yu)
-**Status:** v0.3 (2026-10-28), matching `config/music_spec.yaml` version 0.3. §1–7 decided except the kit list, swing drift, mic coloration, and tap sounds. §5–7 values are provisional until the §9 listening checks.
+**Status:** v0.4 (2026-10-28), matching `config/music_spec.yaml` version 0.4. §1–7 decided except the kit list, swing drift, mic coloration, and tap sounds. §5–7 values are provisional until the §9 listening checks.
 
 ## How to use this document
 
@@ -51,6 +51,8 @@ These rules decide which loops count as a match. D builds the answer key from th
 | Ghost notes | Ignore hits with velocity below **40** (check by ear across a few kits) | Ignore below 15 |
 | Flams | Merge hits of the same voice closer than **30 ms** into one hit | Yes |
 | Flam timing | — | The merged hit takes the **loudest** hit's timing (the earlier one on a tie) |
+| Flam runs (ruffs, drags) | — | A run of hits, each closer than 30 ms to the next, merges into one hit, even when the whole run spans more than 30 ms |
+| Hits exactly between two steps | — | Go to the simpler position: beat, then 8th, then 16th or triplet, then finer steps. When both rank the same, the later step. (2.4% of hits sit exactly on a midpoint.) |
 | Swing | Swung and straight versions of a beat are **different** rhythms | Yes |
 | Minimum content | A loop needs at least one kick and one snare to be kept | Yes |
 
@@ -183,3 +185,4 @@ After the first version works, compare these rules against how the drummers in T
 |---|---|---|---|
 | 2026-10-20 | §1–4 decided (spec v0.2) | First version for the team call | Team call |
 | 2026-10-28 | Decided: exact matching; flam timing from the loudest hit; hits near a bar line join their nearest step's bar; a new loop every 2 bars; renders within ±20% of the recorded tempo; kit sources; §5 mouth-sound choice and cut-off, snares below velocity 10 not voiced (none reach the beatbox while the label floor is 15), other hats use the closed-hat sound; §5–7 defaults approved as provisional (spec v0.3) | B's questions; unblocks `clip_grid()`, the loop cutter, the beatbox generator, and D's answer key | B |
+| 2026-10-28 | Decided: flam runs merge as one hit; exact midpoints go to the simpler position (spec v0.4) | Tie-breaks needed to build `clip_grid()` | Not yet |
