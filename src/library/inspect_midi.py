@@ -1,4 +1,4 @@
-"""Inspect one GMD performance and extract its first raw loop window.
+"""Inspect one GMD performance and extract its first labeled loop window.
 
 Run this file from the IDE with the project's .venv interpreter, or run
 ``python -m src.library.inspect_midi``. No audio is synthesized or played.
@@ -23,7 +23,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def inspect_performance(gmd_dir: Path, out_dir: Path, performance_id: str | None = None) -> Path:
-    """Export original drum hits, without filtering, quantizing, or labeling rhythms.
+    """Export original hits and preview the first clip with shared rhythm labels.
 
     The spec filters the default performance selection only. An explicit ID must
     also meet those filters. Raw hits remain available even when their voice is
@@ -94,6 +94,7 @@ def inspect_performance(gmd_dir: Path, out_dir: Path, performance_id: str | None
             duration_beats=duration_beats,
             time_signature=row["time_signature"],
             spec=spec,
+            bpm=float(row["bpm"]),
         )
     except (ValueError, KeyError) as error:
         # Keep the raw inspection useful for short or unsupported performances.
@@ -114,8 +115,11 @@ def inspect_performance(gmd_dir: Path, out_dir: Path, performance_id: str | None
             "end_beat_exclusive": clip.end_beat,
             "duration_beats": clip.end_beat - clip.start_beat,
             "source_duration_beats": duration_beats,
-            "boundary_policy": "raw onsets in [start, end); no quantization",
-            "status": "raw window only; no rhythm labels or audio",
+            "boundary_policy": "nearest_step; input includes one beat of context per side",
+            "pattern_id": clip.pattern_id,
+            "dualized_pattern_id": clip.dualized_pattern_id,
+            "grid_hits": int(clip.grid.onsets.sum()),
+            "status": "labeled MIDI window; audio not rendered",
         }
         clip_hits.to_csv(clip_outputs[0], index=False)
         clip_outputs[1].write_text(json.dumps(clip_metadata, indent=2) + "\n")
@@ -139,8 +143,8 @@ def inspect_performance(gmd_dir: Path, out_dir: Path, performance_id: str | None
         "line-height:1.5}table{border-collapse:collapse}th,td{padding:6px 12px;"
         "border:1px solid #ddd}pre{white-space:pre-wrap;background:#f5f5f5;padding:16px}"
         "</style><h1>One GMD performance</h1>"
-        "<p>This inspects a performance and extracts its first raw loop window. "
-        "No rhythm labels or training examples have been generated.</p>"
+        "<p>This inspects a performance and extracts its first labeled loop window. "
+        "The clip has rhythm labels; paired training audio has not been generated.</p>"
         "<h2>Source and metadata</h2><pre>"
         + html.escape(json.dumps(metadata, indent=2))
         + "</pre><h2>First 30 drum hits</h2>"
@@ -151,13 +155,12 @@ def inspect_performance(gmd_dir: Path, out_dir: Path, performance_id: str | None
         + hits.head(30).to_html(index=False, float_format=lambda value: f"{value:.4f}")
         + '<p><a href="hits.csv">All drum hits (CSV)</a> · '
         '<a href="metadata.json">Metadata (JSON)</a></p>'
-        "<h2>First raw clip</h2><p>Clip beat positions are relative to the window start. "
-        "Quiet and dropped hits remain. Raw onset boundaries are provisional; "
-        "early downbeats are not reassigned to adjacent windows.</p>"
+        "<h2>First labeled clip</h2><p>Clip beat positions are relative to the window start. "
+        "The raw input includes one beat of context on either side; negative and "
+        "past-end positions are intentional. The grid determines label membership.</p>"
         + clip_html
-        + "<h2>Next checkpoint</h2><p>Confirm boundary handling with Joshua, then "
-        "connect the shared rhythm-label functions when available. Full dataset "
-        "generation still needs loop stride, labels, and audio.</p></html>"
+        + "<h2>Next checkpoint</h2><p>Generate paired drum and beatbox audio, "
+        "then finalize splits and listening checks.</p></html>"
     )
     return report
 

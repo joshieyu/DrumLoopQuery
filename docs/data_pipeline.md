@@ -87,65 +87,107 @@ we generate training audio.
 - The original train/validation/test split is visible and preserved.
 - Unknown pitches are reviewed before downstream processing.
 
-## First raw clip (implemented)
+## Labeled loop extraction (updated for spec v0.4)
 
-`src/library/clips.py` supplies `first_clip()`, returning a `Clip` containing
-`Note(pitch, velocity, beat)` objects with positions relative to the window start.
-The inspection script runs this automatically and adds a clip section to the
-same HTML report. The current configured two-bar 4/4 window spans eight beats.
+The original single-window checkpoint has been replaced with spec-based cutting
+in `src/library/clips.py`. `cut_clips()` returns all qualifying clips from one
+performance. `first_clip()` returns the first for the inspection report. Both
+require the performance BPM because flam merging uses milliseconds.
 
-The implementation:
+The cutter now:
 
-1. Reads the length, required starting voices, ghost thresholds, drum mapping,
-   and ending exclusion from the shared spec.
-2. Counts only complete bars within the available MIDI note span, then reserves
-   the configured number of final complete bars. A trailing partial bar is not
-   counted. This conservative source-span policy is explicit and may need
-   refinement when the production dataset cutter is agreed.
-3. Finds the first remaining bar containing all required voices, counting hits
-   at or above their voice's quiet-hit threshold.
-4. Requires enough space for the full window at that start. It reports failure
-   rather than shortening the clip.
-5. Includes original onsets in `[start_beat, end_beat)`: the start is included,
-   the end is excluded. Subtracts `start_beat` to produce relative positions.
-   Quiet hits and dropped voices remain in this raw clip.
+1. Considers complete source bars, reserves `loops.drop_last_bars`, and ignores
+   a trailing partial bar. The source span is still measured from the MIDI's last
+   note end, matching the listening prototype's duration convention.
+2. Finds the first bar containing the required start voices **on the shared
+   quantized grid**, so an early downbeat can qualify the intended bar.
+3. Starts successive windows every `loops.hop_bars` bars (currently two).
+4. Passes original notes from **one beat before to one beat after** each window
+   to `clip_grid()`, with positions relative to the window start. This follows
+   the newer week 3 handoff, superseding the smaller v0.3 boundary margin.
+5. Uses `has_min_hits()` to reject insufficient content and `pattern_id()` to
+   remove duplicate patterns within the same performance, as configured.
+6. Stores the three-voice grid, its pattern ID, and the dualized tap-pattern ID.
+   No alternative hashing, rounding, or flam-merging logic is used.
 
-Window boundaries currently use raw timing, without quantization. A hit just
-before the start stays outside, even if it was intended as an early downbeat.
-This is a provisional inspection boundary policy, not the final rhythmic
-membership rule. Confirm it with Joshua before scaling up the dataset. No flam
-merging, grid labels, duplicate removal, or musical equivalence is implemented.
+A `Clip` contains `start_bar`, `start_beat`, `end_beat`, `notes`, `grid`,
+`pattern_id`, and `dualized_pattern_id`. Bars are zero-based. The window duration
+excludes context: a two-bar 4/4 clip is eight beats even though `notes` may span
+negative positions through positions greater than eight. Context is needed for
+labeling boundary hits and flams; **do not blindly render all context as part of
+an eight-beat audio clip**. Audio boundary handling is a separate upcoming step.
 
-Additional outputs under `results/midi_inspection/`:
+The raw context retains original velocity, dropped drum categories, and quiet
+hits. `clip_grid()` owns filtering, merging, timing quantization, and label
+membership. The grid can therefore have fewer events than the raw context.
+
+The single-performance report now includes pattern IDs and a grid-hit count.
+Its `clip_hits.csv` intentionally includes context, and `clip_metadata.json`
+records that boundary policy. Re-running an older report can change counts and
+pattern labels because its original raw-boundary extraction was provisional.
+
+## Catalog the local GMD collection
+
+Open `src/library/catalog_gmd.py` and select **Run Python File**. The script has
+already been run locally. Terminal equivalent:
+
+```bash
+.venv/bin/python -m src.library.catalog_gmd
+```
+
+It selects eligible performances from `info.csv`, loads their MIDI drum tracks,
+and applies the cutter. It logs failed sources explicitly; variable-tempo files
+and time signatures inconsistent with metadata require review. The command
+returns a nonzero exit if any sources failed. It does not download data.
+
+Outputs are gitignored under `results/gmd_catalog/`:
 
 | File | Contents |
 |---|---|
-| `clip_hits.csv` | Pitch, velocity, relative beat, original source beat, configured group |
-| `clip_metadata.json` | Source details, zero-based start bar, window boundaries, spec version, boundary policy |
+| `loop_catalog.csv` | One row per retained MIDI window: source, original split, zero-based starting bar, boundaries, BPM, pattern IDs, context/grid counts |
+| `loops.jsonl` | One JSON object per line with the same metadata, original context `Note` inputs, and boolean three-voice grid |
+| `split_conflicts.csv` | Catalog rows whose exact three-voice pattern occurs in more than one official split |
+| `failures.csv` | Sources that failed processing and their errors; headers only when none failed |
+| `summary.json` | Spec version, dataset root, selection counts, split counts, and unresolved status |
 
-For example, source beat 9.5 in a clip starting at beat 8 becomes relative beat
-1.5. `start_bar=0` means the first bar; `start_bar=1` means the second bar.
-The source split is copied unchanged. This does not make a test performance
-eligible for training.
+MIDI paths in the catalog are relative to `gmd_root` in the summary. A diagnostic
+clip ID combines the source performance ID and starting bar; future audio IDs
+will also need to distinguish kits and render tempos. This catalog is **not**
+`library_manifest.csv`: there is no audio path, kit assignment, or rendered audio
+at this checkpoint. Source splits are preserved rather than shuffled.
 
-If a performance is too short, has no qualifying bar, or contains unknown
-pitches, the report explains why no clip was produced. Old clip outputs are
-removed so they cannot be mistaken for the current performance's clip.
+### Verified local run (2026-11-05)
 
-Validation: `tests/test_clips.py` checks count-in skipping, relative timing,
-exact end exclusion, preserved quiet/dropped hits, insufficient source length,
-and unknown pitches. `tests/test_midi_inspection.py` checks the raw export.
+- Spec v0.4; 460 eligible performances; zero processing failures.
+- 72 eligible performances produced no retained complete, content-qualified clip.
+- 8,646 retained clips and 8,626 distinct three-voice patterns.
+- 6,907 train clips, 846 validation clips, and 893 test clips.
+- Three exact rhythm patterns occur across official splits.
 
-## Next step and dependencies
+These are measurements of this cutter and local data, not the older handoff's
+provisional counts. The split-conflict report is an audit: **the catalog is not
+approved for training until conflicts are resolved**. The final cross-split
+pattern rule is still a team decision. Tap relevance uses dualized IDs and will
+need its own review when constructing splits and the answer key.
 
-Before final loop selection and labels, coordinate with Joshua on loop stride
-(`loops.hop_bars`), the retained flam timing (`same_rhythm.flam_keep`), and the
-remaining rhythm-matching decisions. `clip_grid()` and `dualize()` are still
-unimplemented shared interfaces. Do not substitute private labeling logic.
+Tests cover early downbeats, boundary context, relative positions, the configured
+stride, within-performance duplicates, minimum content, final-bar exclusion,
+source preservation, and catalog label round trips. A synthetic catalog test
+ensures shared patterns are flagged without silently changing source splits.
 
-Drum rendering, synthetic beatbox generation, final manifests, duplicate
-removal, and split-leakage checks are later checkpoints. This inspection does
-not claim that a dataset is ready for model training.
+## Next pipeline checkpoints
+
+Joshua's formerly missing rules are now in spec v0.4 and `clip_grid()`,
+`has_min_hits()`, and `dualize()` are implemented. Use `docs/week3_handoff.md`
+as the current coordination reference.
+
+Next, extract AVP sounds using the approved `beatbox.sound_end` settings and
+build a small synthetic beatbox batch. Drum rendering can use the new
+`tools/render/` sampler once kit samples are available locally; the approximately
+1.9 GB kit download is a separate step requiring confirmation. Kit note maps
+and train/test assignments still await the music lead's sign-off. Production
+loudness normalization, paired audio manifests, participant splits, and the
+cross-split pattern policy remain to implement. E-GMD audio is on hold.
 
 ## AVP sound index (implemented)
 
@@ -219,7 +261,8 @@ annotations, duplicate onsets, and unchanged original audio bytes.
 ### What this enables next
 
 A future generator can select, for example, a kick annotation from one participant
-and locate it in the source WAV. Before extracting samples, define the end-time
-and decay policy with Joshua. Before training, assign participant-disjoint splits
+and locate it in the source WAV. The approved `beatbox.sound_end` policy now specifies 30 dB below peak,
+the next annotated onset, or 500 ms, whichever comes first, plus a 10 ms fade.
+Sample extraction using that policy is the next implementation step. Before training, assign participant-disjoint splits
 and select the approved mode/recording kinds. Cataloging everyone together is
 not permission to use everyone's sounds for training.
