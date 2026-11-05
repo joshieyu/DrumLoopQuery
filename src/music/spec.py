@@ -30,6 +30,8 @@ AVP_RECORDINGS = ("isolated", "improvisation")  # single-sound takes vs. improvi
 FLAM_KEEP = ("first", "loudest")
 MATCH_RULES = ("exact",)  # how grids compare; near-match rules would join this list
 BOUNDARIES = ("nearest_step", "raw")
+KIT_TYPES = ("acoustic", "electronic", "lo-fi", "other")  # spec §4 kit table
+SPLITS = ("train", "test")
 
 Range = tuple[float, float]
 
@@ -75,12 +77,36 @@ class Loops:
 
 
 @dataclass(frozen=True)
+class KitNote:
+    """What one GMD note plays on a kit."""
+
+    key: int | None  # the kit's MIDI key; None: the kit plays nothing for this note
+    cc: dict[int, int]  # CC values (0..127) sent with this note only, e.g. hi-hat openness
+
+
+@dataclass(frozen=True)
+class Kit:
+    """One drum kit (spec §4): where its program lives and what each GMD note plays."""
+
+    kit_id: str  # as in library_manifest.csv
+    type: str  # one of KIT_TYPES
+    program: str  # its SFZ program, relative to data/raw/kits
+    samples: str | None  # folder its sample paths start from, if not the program's own
+    split: str | None  # "train" or "test"; None until the music lead assigns it
+    controls: dict[int, int]  # CC values (0..127) held for the whole render
+    note_map: dict[int, KitNote]  # every drum_map note
+
+    def play(self, note: int) -> KitNote:
+        return self.note_map[note]
+
+
+@dataclass(frozen=True)
 class Rendering:
     tempo_bpm: Range
     max_tempo_change_pct: float | None  # None until the spec decides
     loudness_normalize: bool
     keep_performer_velocities: bool
-    kits: tuple[dict, ...]  # entry format gets defined when kits are chosen
+    kits: tuple[Kit, ...]
 
 
 @dataclass(frozen=True)
@@ -270,6 +296,69 @@ def _midpoint_priority(v: Any, steps_per_beat: int) -> tuple[tuple[int, ...], ..
     return groups
 
 
+def _cc_values(v: Any, where: str) -> dict[int, int]:
+    if not isinstance(v, dict):
+        raise SpecError(f"{where}: expected a mapping of CC number to value, got {v!r}")
+    return {_int(cc, where, 0, 127): _int(x, f"{where}.{cc}", 0, 127) for cc, x in v.items()}
+
+
+def _rel_path(v: Any, where: str) -> str:
+    if not isinstance(v, str) or not v or v.startswith("/") or ".." in Path(v).parts:
+        raise SpecError(f"{where}: expected a path inside data/raw/kits, got {v!r}")
+    return v
+
+
+def _kits(raw: Any, drum_map: dict[str, DrumGroup]) -> tuple[Kit, ...]:
+    """rendering.kits: every GMD note must be mapped, and every labelled note must sound."""
+    if not isinstance(raw, list):
+        raise SpecError("rendering.kits: expected a list of kit entries")
+    groups = {n: g.group for g in drum_map.values() for n in g.notes}
+    fields = [f.name for f in Kit.__dataclass_fields__.values()]
+    out: list[Kit] = []
+    for i, entry in enumerate(raw):
+        e = _keys(entry, fields, f"rendering.kits[{i}]")
+        kit_id = e["kit_id"]
+        if not isinstance(kit_id, str) or not re.fullmatch(r"[a-z0-9_]+", kit_id):
+            raise SpecError(f"rendering.kits[{i}].kit_id: use lowercase letters, digits, _")
+        if any(k.kit_id == kit_id for k in out):
+            raise SpecError(f"rendering.kits: kit_id {kit_id!r} appears twice")
+        where = f"rendering.kits.{kit_id}"
+        if not isinstance(e["note_map"], dict):
+            raise SpecError(f"{where}.note_map: expected a mapping of GMD note to kit key")
+        missing = sorted(set(groups) - set(e["note_map"]))
+        extra = sorted(set(e["note_map"]) - set(groups))
+        if missing or extra:
+            raise SpecError(
+                f"{where}.note_map: must map every drum_map note; missing {missing}, "
+                f"not in drum_map {extra}"
+            )
+        note_map = {}
+        for note, value in e["note_map"].items():
+            w = f"{where}.note_map.{note}"
+            if isinstance(value, dict):
+                v = _keys(value, ["key", "cc"], w)
+                key, cc = v["key"], _cc_values(v["cc"], f"{w}.cc")
+            else:
+                key, cc = value, {}
+            if key is None and groups[note] != DROP:
+                raise SpecError(f"{w}: a {groups[note]} note must play a sound (labelled hit)")
+            note_map[note] = KitNote(None if key is None else _int(key, w, 0, 127), cc)
+        out.append(
+            Kit(
+                kit_id=kit_id,
+                type=_choice(e["type"], KIT_TYPES, f"{where}.type"),
+                program=_rel_path(e["program"], f"{where}.program"),
+                samples=None
+                if e["samples"] is None
+                else _rel_path(e["samples"], f"{where}.samples"),
+                split=None if e["split"] is None else _choice(e["split"], SPLITS, f"{where}.split"),
+                controls=_cc_values(e["controls"], f"{where}.controls"),
+                note_map=note_map,
+            )
+        )
+    return tuple(out)
+
+
 def _exists(raw: dict, dotted: str) -> bool:
     node: Any = raw
     for part in dotted.split("."):
@@ -361,8 +450,6 @@ def parse_spec(raw: Any, path: Path = DEFAULT_PATH) -> MusicSpec:
     r = _keys(
         raw["rendering"], [f.name for f in Rendering.__dataclass_fields__.values()], "rendering"
     )
-    if not isinstance(r["kits"], list) or not all(isinstance(k, dict) for k in r["kits"]):
-        raise SpecError("rendering.kits: expected a list of kit entries")
     rendering = Rendering(
         tempo_bpm=_range(r["tempo_bpm"], "rendering.tempo_bpm", 20, 400),
         max_tempo_change_pct=None
@@ -372,7 +459,7 @@ def parse_spec(raw: Any, path: Path = DEFAULT_PATH) -> MusicSpec:
         keep_performer_velocities=_bool(
             r["keep_performer_velocities"], "rendering.keep_performer_velocities"
         ),
-        kits=tuple(r["kits"]),
+        kits=_kits(r["kits"], drum_map),
     )
 
     b = _keys(raw["beatbox"], [f.name for f in Beatbox.__dataclass_fields__.values()], "beatbox")

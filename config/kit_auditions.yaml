@@ -1,0 +1,76 @@
+# Alternatives the kit articulation page (python -m tools.listen.kit_articulations) plays
+# next to each draft in rendering.kits (config/music_spec.yaml). These are listening
+# candidates, not mappings: the kits play whatever music_spec.yaml says. Add or remove
+# candidates freely; the page also lists every sound each kit has, so any key can be
+# tried with the "other" field.
+#
+# Per kit: GMD note -> list of kit sounds, in note_map value forms (a key, or
+# {key: K, cc: {CC: value}}). Names in the comments are the kits' sample names.
+
+avl_black_pearl: &avl_pearl_zeppelin
+  45: [41]        # tom 2 on the floor tom instead of the rack tom
+  47: [45, 43]    # tom 2 rim: rack tom head, or floor tom edge
+  50: [45]        # tom rims on the drum head instead of its edge
+  58: [41]
+  46: [48]        # open hat: 'HatSwish' instead of 'HatSemi'
+  26: [48]
+  59: [51]        # ride edge: the ride bow instead of 'RideShank'
+  57: [60]        # second crash: the 22-inch crash instead of the 17-inch
+  52: [60]
+avl_red_zeppelin: *avl_pearl_zeppelin
+avl_blonde_bop: &avl_bop
+  45: [41]
+  47: [45, 43]
+  50: [45]
+  58: [41]
+  46: [48]
+  26: [48]
+  59: [51]
+avl_blonde_bop_hr: *avl_bop
+
+drskit:
+  36: [35]        # 'Kdrum_without_contact' instead of 'Kdrum_with_contact'
+  37: [40]        # cross-stick: 'Snare_rest' instead of 'Snare_rim'
+  40: [37, 38]    # rimshot: 'Snare_rim', or the snare head
+  42: [42]        # closed hat bow: 'Hihat_closed_shank' instead of 'Hihat_closed' (tip)
+  22: [56]        # closed hat edge: 'Hihat_closed' (tip) instead of the shank
+  46: [58, 46]    # open hat bow: 'Hihat_open' or 'Hihat_semi_open' instead of 'Hihat_open_tip'
+  26: [61, 46]
+  59: [51]        # ride edge: 'Ride_tip' instead of 'Ride_shank'
+  53: [68]        # ride bell: 'Ride_tip_bell' instead of 'Ride_shank_bell'
+  49: [54]        # crashes: tip hits instead of shank hits
+  55: [54]
+  57: [55]
+  52: [55]
+
+muldjordkit:
+  36: [35]        # 'KdrumL' instead of 'KdrumR'
+  40: [38]        # rimshot: the snare head instead of 'SnareRest'
+  45: [45]        # tom 2: 'Tom3' instead of 'Tom2'
+  47: [45]
+  43: [45]        # tom 3: 'Tom3' instead of 'Tom4'
+  58: [45]
+  51: [59]        # ride: 'RideL' instead of 'RideR'
+  59: [59]
+  53: [55]        # ride bell: 'RideLBell' instead of 'RideRBell'
+  52: [52]        # second crash edge: 'China'
+
+salamander:
+  36: [35]        # 'kick' instead of 'kick2'
+  38: [40]        # snare head: 'snare' instead of 'snare2' (a different drum)
+  40: [40, 41]    # no rimshot samples: 'snare' (the other drum), or 'snareStick'
+  45: [43]        # tom 2 on the low tom
+  47: [43]
+  46:             # open hat: key 42 follows the pedal (CC4 0 = most open, 127 = closed)
+    - {key: 42, cc: {4: 0}}
+    - {key: 42, cc: {4: 48}}
+  26:
+    - {key: 42, cc: {4: 0}}
+    - {key: 42, cc: {4: 48}}
+  51: [48]        # ride: 'ride2' instead of 'ride1'
+  59: [50, 48]    # ride edge: 'ride2Crash' or 'ride2'
+  53: [49]        # ride bell: 'ride2Bell'
+  57: [62]        # second crash: 'crash3'
+  52: [62]
+
+# gogodze_phu_vol_ii: the sampler can't play this kit yet (pitch, filters, mic delays).

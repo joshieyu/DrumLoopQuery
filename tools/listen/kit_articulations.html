@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kit articulations</title>
+<style>
+:root {
+  --bg: #ffffff; --fg: #1d1d1f; --muted: #6e6e73; --line: #e3e3e8; --panel: #f5f5f7;
+  --accent: #0a66d8; --on-accent: #ffffff; --pick: #e8f1fd; --warn: #9a5b00; --off: #f0f0f2;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161618; --fg: #f2f2f7; --muted: #a1a1a6; --line: #38383b; --panel: #222225;
+    --accent: #5aa2ff; --on-accent: #0b1220; --pick: #1c2b40; --warn: #e3a33b; --off: #1d1d20;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+header { padding: 14px 16px 10px; border-bottom: 1px solid var(--line); }
+a { color: var(--accent); }
+code { font-size: 12px; }
+h1 { font-size: 17px; margin: 0 0 4px; }
+h2 { font-size: 15px; margin: 0 0 8px; }
+p { margin: 4px 0; color: var(--muted); max-width: 980px; }
+.bar { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-top: 10px; }
+.bar label { display: inline-flex; gap: 4px; align-items: center; cursor: pointer; }
+button, .button { font: inherit; padding: 4px 10px; border: 1px solid var(--line);
+  border-radius: 6px; background: var(--panel); color: var(--fg); cursor: pointer; }
+button:hover:not(:disabled) { border-color: var(--accent); }
+#progress { font-variant-numeric: tabular-nums; color: var(--muted); }
+.scroll { overflow: auto; max-height: calc(100vh - 150px); }
+table { border-collapse: separate; border-spacing: 0; }
+th, td { border-right: 1px solid var(--line); border-bottom: 1px solid var(--line);
+  vertical-align: top; padding: 6px 8px; background: var(--bg); text-align: left; }
+thead th { position: sticky; top: 0; z-index: 2; background: var(--panel); min-width: 250px; }
+thead th:first-child, tbody th { position: sticky; left: 0; background: var(--panel); }
+thead th:first-child { z-index: 3; min-width: 150px; }
+tbody th { z-index: 1; font-weight: 500; width: 150px; }
+tr.group th { background: var(--bg); padding-top: 14px; font-size: 12px; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .04em; border-right: none; }
+tr.group td { border-right: none; }
+.sub { display: block; color: var(--muted); font-weight: 400; font-size: 12px; }
+.kitname { font-weight: 600; }
+td.off { background: var(--off); color: var(--muted); }
+.opt { display: block; padding: 4px 6px; margin: 0 0 3px; border: 1px solid transparent;
+  border-radius: 6px; cursor: pointer; }
+.opt:hover { border-color: var(--line); }
+.opt.picked { background: var(--pick); border-color: var(--accent); }
+.opt input[type=radio] { margin: 0 4px 0 0; vertical-align: -1px; }
+.key { font-variant-numeric: tabular-nums; font-weight: 600; }
+.tag { font-size: 11px; padding: 0 5px; border-radius: 8px; border: 1px solid var(--line);
+  color: var(--muted); margin-left: 4px; white-space: nowrap; }
+.tag.draft { border-color: var(--accent); color: var(--accent); }
+.meta { display: flex; justify-content: space-between; gap: 6px; align-items: center;
+  margin-top: 3px; padding-left: 20px; }
+.info { color: var(--muted); font-size: 11px; }
+.plays { display: inline-flex; gap: 3px; flex: none; }
+.play { font: 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace; padding: 4px 5px;
+  min-width: 30px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg);
+  color: var(--fg); cursor: pointer; }
+.play.playing { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+.play:disabled { opacity: .35; cursor: default; }
+.extra { display: flex; gap: 4px; align-items: center; margin-top: 4px; }
+.extra .opt { margin: 0; padding: 2px 4px; white-space: nowrap; flex: none; }
+.extra input[type=text] { font: inherit; font-size: 12px; padding: 3px 5px; flex: 1 1 0;
+  min-width: 0; border: 1px solid var(--line); border-radius: 4px; background: var(--bg);
+  color: var(--fg); }
+.extra input.other { flex: 0 0 60px; }
+.warn { color: var(--warn); }
+section { padding: 16px; }
+#browser table th, #browser table td { position: static; min-width: 0; }
+#browser .key { width: 48px; }
+footer { padding: 8px 16px 24px; color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Kit articulations</h1>
+  <p>Each row is a GMD note and each column a kit. A cell plays the draft sound from
+  <code>rendering.kits</code> first, then the alternatives from <code>config/kit_auditions.yaml</code>.
+  The buttons play one hit at each velocity. Pick the sound that fits; to use a key that isn't offered,
+  find it under <a href="#browser">All sounds</a> and type it in <em>other</em> (e.g. <code>64</code> or
+  <code>42 cc4=0</code>). Picks stay in this browser. Export the CSV when you're done.</p>
+  <p id="levels"></p>
+  <div class="bar" id="kitbar"></div>
+  <div class="bar">
+    <label><input type="checkbox" id="onlyalts"> only rows with alternatives</label>
+    <label><input type="checkbox" id="hidedone"> hide rows already picked</label>
+    <span id="progress"></span>
+    <button id="export">Export CSV</button>
+    <label class="button">Import CSV <input type="file" id="import" accept=".csv,text/csv" hidden></label>
+    <button id="clear">Clear picks</button>
+    <span class="info">Esc stops playback.</span>
+  </div>
+</header>
+<div class="scroll"><table id="grid"></table></div>
+<section id="browser">
+  <h2>All sounds</h2>
+  <div class="bar"><label>Kit <select id="bkit"></select></label></div>
+  <div id="blist"></div>
+</section>
+<footer id="foot"></footer>
+<script type="application/json" id="data">/*DATA*/{}</script>
+<script>
+"use strict";
+const DATA = JSON.parse(document.getElementById("data").textContent);
+const VELS = DATA.velocities;
+const playable = DATA.kits.filter(k => k.renderable);
+let state = {};
+try { state = JSON.parse(localStorage.getItem(DATA.store_key) || "{}") || {}; } catch (e) { state = {}; }
+const hidden = new Set();
+
+function el(tag, attrs, ...kids) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v === false || v === null || v === undefined) continue;
+    if (k === "class") n.className = v; else n.setAttribute(k, v === true ? "" : v);
+  }
+  for (const kid of kids) if (kid !== null && kid !== undefined) n.append(kid);
+  return n;
+}
+function save() {
+  try { localStorage.setItem(DATA.store_key, JSON.stringify(state)); } catch (e) {}
+  progress();
+}
+function pick(key) { return state[key] || (state[key] = { choice: "", other: "", notes: "" }); }
+
+// ---------------------------------------------------------------- playback
+const player = new Audio();
+let playing = null;
+function stop() {
+  player.pause();
+  if (playing) playing.classList.remove("playing");
+  playing = null;
+}
+function play(btn) {
+  const again = playing === btn;
+  stop();
+  if (again) return;
+  player.src = btn.dataset.src;
+  player.currentTime = 0;
+  player.play().catch(() => stop());
+  btn.classList.add("playing");
+  playing = btn;
+}
+player.addEventListener("ended", stop);
+document.addEventListener("keydown", e => { if (e.key === "Escape") stop(); });
+
+function plays(clips) {
+  return el("span", { class: "plays" }, ...clips.map((src, i) =>
+    el("button", { class: "play", "data-src": src, disabled: !src,
+      title: src ? `velocity ${VELS[i]}` : `no sound at velocity ${VELS[i]}` }, String(VELS[i]))));
+}
+
+// ---------------------------------------------------------------- grid
+function optionNode(key, o, cell) {
+  const tags = [];
+  if (o.value === cell.draft) tags.push(el("span", { class: "tag draft" }, "draft"));
+  if (o.value === cell.draft && cell.same_as.length)
+    tags.push(el("span", { class: "tag", title: "the draft plays the same sound for these GMD notes" },
+      "= " + cell.same_as.join(", ")));
+  return el("label", { class: "opt", "data-value": o.value },
+    el("input", { type: "radio", name: key, value: o.value }),
+    el("span", { class: "key" }, o.value), " ", o.label || el("span", { class: "warn" }, "no sound"), ...tags,
+    el("div", { class: "meta" }, el("span", { class: "info" }, o.info), plays(o.clips)));
+}
+function choiceNode(key, value, text, isDraft) {
+  return el("label", { class: "opt", "data-value": value },
+    el("input", { type: "radio", name: key, value: value }), text,
+    isDraft ? el("span", { class: "tag draft" }, "draft") : null);
+}
+function cellNode(kit, row) {
+  const key = `${kit.id}|${row.note}`, cell = DATA.cells[key];
+  const td = el("td", { "data-kit": kit.id, "data-key": key });
+  if (!kit.renderable) {
+    td.className = "off";
+    td.append(el("span", { class: "key" }, cell.draft), el("span", { class: "tag" }, "draft"));
+    return td;
+  }
+  for (const o of cell.options) td.append(optionNode(key, o, cell));
+  if (row.dropped) td.append(choiceNode(key, "silent", "no sound (dropped note)", cell.draft === "silent"));
+  td.append(el("div", { class: "extra" },
+    el("label", { class: "opt", "data-value": "other" },
+      el("input", { type: "radio", name: key, value: "other" }), "other"),
+    el("input", { type: "text", class: "other", placeholder: "key", "data-field": "other" }),
+    el("input", { type: "text", placeholder: "notes", "data-field": "notes" })));
+  return td;
+}
+function buildGrid() {
+  const grid = document.getElementById("grid");
+  grid.replaceChildren();
+  const head = el("tr", {}, el("th", {}, "GMD note"));
+  for (const k of DATA.kits) {
+    const sub = k.renderable ? `${k.type} · ${k.sample_rate / 1000} kHz · ${k.gain_db > 0 ? "+" : ""}${k.gain_db} dB`
+                             : `can't play yet: ${k.reason}`;
+    head.append(el("th", { "data-kit": k.id }, el("span", { class: "kitname" }, k.id),
+      el("span", { class: k.renderable ? "sub" : "sub warn" }, sub)));
+  }
+  grid.append(el("thead", {}, head));
+  const body = el("tbody");
+  for (const g of DATA.groups) {
+    const name = g.name.replace(/_/g, " ");
+    const label = g.voice === "drop" ? `${name} · not labelled` : `${name} · ${g.voice}`;
+    body.append(el("tr", { class: "group" }, el("th", {}, label), el("td", { colspan: DATA.kits.length })));
+    for (const row of DATA.rows.filter(r => r.group === g.name)) {
+      const tr = el("tr", { "data-note": row.note }, el("th", {}, `${row.note} ${row.name}`,
+        el("span", { class: "sub" }, row.dropped ? "dropped" : row.voice)));
+      for (const k of DATA.kits) tr.append(cellNode(k, row));
+      body.append(tr);
+    }
+  }
+  grid.append(body);
+  applyState();
+}
+function applyState() {
+  for (const td of document.querySelectorAll("td[data-key]")) {
+    const s = state[td.dataset.key];
+    for (const opt of td.querySelectorAll(".opt")) {
+      const on = !!s && s.choice === opt.dataset.value;
+      opt.classList.toggle("picked", on);
+      opt.querySelector("input").checked = on;
+    }
+    for (const input of td.querySelectorAll("input[data-field]")) input.value = (s && s[input.dataset.field]) || "";
+  }
+  filter();
+}
+function filter() {
+  const onlyAlts = document.getElementById("onlyalts").checked;
+  const hideDone = document.getElementById("hidedone").checked;
+  for (const node of document.querySelectorAll("[data-kit]")) node.hidden = hidden.has(node.dataset.kit);
+  const shown = playable.filter(k => !hidden.has(k.id));
+  for (const tr of document.querySelectorAll("tr[data-note]")) {
+    const keys = shown.map(k => `${k.id}|${tr.dataset.note}`);
+    const alts = keys.some(key => DATA.cells[key].options.length > 1);
+    const done = keys.length > 0 && keys.every(key => state[key] && state[key].choice);
+    tr.hidden = (onlyAlts && !alts) || (hideDone && done);
+  }
+  progress();
+}
+function progress() {
+  let total = 0, done = 0;
+  for (const k of playable) for (const r of DATA.rows) {
+    total++;
+    const s = state[`${k.id}|${r.note}`];
+    if (s && s.choice) done++;
+  }
+  document.getElementById("progress").textContent = `${done} of ${total} cells picked`;
+}
+
+document.getElementById("grid").addEventListener("click", e => {
+  const btn = e.target.closest("button.play");
+  if (btn) { e.preventDefault(); play(btn); }
+});
+document.getElementById("grid").addEventListener("change", e => {
+  const t = e.target;
+  if (t.type !== "radio") return;
+  pick(t.name).choice = t.value;
+  save();
+  applyState();
+});
+document.getElementById("grid").addEventListener("input", e => {
+  const t = e.target, field = t.dataset.field;
+  if (!field) return;
+  const key = t.closest("td").dataset.key, s = pick(key);
+  s[field] = t.value;
+  if (field === "other" && t.value.trim()) s.choice = "other";
+  save();
+  if (field === "other") applyState();
+});
+
+// ---------------------------------------------------------------- controls
+function buildKitBar() {
+  const bar = document.getElementById("kitbar");
+  bar.append(el("span", { class: "info" }, "Kits:"));
+  for (const k of DATA.kits) {
+    const box = el("input", { type: "checkbox", checked: true });
+    box.addEventListener("change", () => { box.checked ? hidden.delete(k.id) : hidden.add(k.id); filter(); });
+    bar.append(el("label", {}, box, k.id));
+  }
+}
+document.getElementById("onlyalts").addEventListener("change", filter);
+document.getElementById("hidedone").addEventListener("change", filter);
+
+const COLUMNS = ["kit_id", "gmd_note", "gmd_name", "group", "voice", "draft", "choice", "other", "notes"];
+function csvField(v) { v = String(v ?? ""); return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v; }
+function exportCsv() {
+  const lines = [COLUMNS.join(",")];
+  for (const k of DATA.kits) for (const r of DATA.rows) {
+    const key = `${k.id}|${r.note}`, s = state[key] || {};
+    const rec = { kit_id: k.id, gmd_note: r.note, gmd_name: r.name, group: r.group, voice: r.voice,
+      draft: DATA.cells[key].draft, choice: s.choice || "", other: s.other || "", notes: s.notes || "" };
+    lines.push(COLUMNS.map(c => csvField(rec[c])).join(","));
+  }
+  const blob = new Blob([lines.join("\n") + "\n"], { type: "text/csv" });
+  const a = el("a", { href: URL.createObjectURL(blob), download: "kit_articulations_picks.csv" });
+  document.body.append(a); a.click(); a.remove();
+}
+function parseCsv(text) {
+  const rows = []; let row = [], field = "", quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (quoted) {
+      if (c === '"' && text[i + 1] === '"') { field += '"'; i++; }
+      else if (c === '"') quoted = false;
+      else field += c;
+    } else if (c === '"') quoted = true;
+    else if (c === ",") { row.push(field); field = ""; }
+    else if (c === "\n" || c === "\r") {
+      if (c === "\r" && text[i + 1] === "\n") i++;
+      row.push(field); rows.push(row); row = []; field = "";
+    } else field += c;
+  }
+  if (field || row.length) { row.push(field); rows.push(row); }
+  return rows;
+}
+document.getElementById("export").addEventListener("click", exportCsv);
+document.getElementById("import").addEventListener("change", async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const [head, ...rows] = parseCsv(await file.text());
+  const col = Object.fromEntries(head.map((h, i) => [h, i]));
+  let n = 0;
+  for (const r of rows) {
+    const key = `${r[col.kit_id]}|${r[col.gmd_note]}`;
+    if (!DATA.cells[key]) continue;
+    state[key] = { choice: r[col.choice] || "", other: r[col.other] || "", notes: r[col.notes] || "" };
+    n++;
+  }
+  save(); applyState();
+  e.target.value = "";
+  alert(`Imported ${n} rows.`);
+});
+document.getElementById("clear").addEventListener("click", () => {
+  if (!confirm("Clear every pick and note on this page?")) return;
+  state = {}; save(); applyState();
+});
+
+// ---------------------------------------------------------------- all sounds
+function buildBrowser() {
+  const select = document.getElementById("bkit");
+  for (const k of playable) select.append(el("option", { value: k.id }, k.id));
+  const show = () => {
+    const list = DATA.browser[select.value] || [];
+    const table = el("table", {}, el("thead", {}, el("tr", {},
+      el("th", {}, "Key"), el("th", {}, "Sound"), el("th", {}, "Layers"), el("th", {}, "Play"),
+      el("th", {}, "Draft for GMD"))));
+    const body = el("tbody");
+    for (const o of list) body.append(el("tr", {},
+      el("td", { class: "key" }, o.value), el("td", {}, o.label), el("td", { class: "info" }, o.info),
+      el("td", {}, plays(o.clips)), el("td", { class: "info" }, o.used_by.join(", "))));
+    table.append(body);
+    document.getElementById("blist").replaceChildren(table);
+  };
+  select.addEventListener("change", show);
+  document.getElementById("blist").addEventListener("click", e => {
+    const btn = e.target.closest("button.play");
+    if (btn) play(btn);
+  });
+  if (playable.length) show();
+}
+
+const off = DATA.kits.filter(k => !k.renderable).map(k => `${k.id} (${k.reason})`);
+document.getElementById("levels").textContent =
+  `Clips: one hit, cut at ${DATA.max_seconds} s. Levels are the kit's own within a column; ` +
+  "each column's gain (in its header) matches the kits on their draft snare at the top velocity." +
+  (off.length ? ` Not playable yet: ${off.join("; ")}.` : "");
+document.getElementById("foot").textContent =
+  `Generated ${DATA.generated}.` + (DATA.warnings.length ? " Warnings: " + DATA.warnings.join("; ") : "");
+buildKitBar();
+buildGrid();
+buildBrowser();
+</script>
+</body>
+</html>

@@ -5,7 +5,7 @@ import copy
 import pytest
 import yaml
 
-from src.music.spec import DEFAULT_PATH, SpecError, load_spec, parse_spec
+from src.music.spec import DEFAULT_PATH, KitNote, SpecError, load_spec, parse_spec
 from tools.inventory.gmd import GMD_NOTES
 
 
@@ -107,7 +107,7 @@ def test_2026_10_28_decisions():
 
 def test_open_questions_stay_open():
     spec = load_spec()
-    assert spec.rendering.kits == ()
+    assert spec.rendering.kits  # drafts, waiting on the music lead's ears
     assert spec.sloppiness.swing_drift_per_bar is None
     assert spec.sloppiness.mic_eq is None
     assert set(spec.undecided()) == {
@@ -115,6 +115,36 @@ def test_open_questions_stay_open():
         "sloppiness.swing_drift_per_bar",
         "sloppiness.mic_eq",
     }
+
+
+def test_draft_kits_map_every_note():
+    spec = load_spec()
+    ids = [k.kit_id for k in spec.rendering.kits]
+    assert len(ids) == len(set(ids))
+    for kit in spec.rendering.kits:
+        assert set(kit.note_map) == set(spec.note_to_group)
+        assert kit.split is None  # splits are assigned by the music lead
+        for note, played in kit.note_map.items():
+            assert played.key is not None or spec.voice_of(note) is None
+
+
+def test_kit_notes_can_carry_ccs():
+    spec = load_spec()
+    gogodze = next(k for k in spec.rendering.kits if k.kit_id == "gogodze_phu_vol_ii")
+    assert gogodze.play(46) == KitNote(46, {4: 127})
+    assert gogodze.play(42) == KitNote(46, {4: 0})
+    assert gogodze.play(49) == KitNote(None, {})
+    pearl = next(k for k in spec.rendering.kits if k.kit_id == "avl_black_pearl")
+    assert pearl.play(38) == KitNote(38, {})
+
+
+def kit(r, **edits):
+    """Apply edits to the first kit entry."""
+    r["rendering"]["kits"][0].update(edits)
+
+
+def kit_note(r, note, value):
+    r["rendering"]["kits"][0]["note_map"][note] = value
 
 
 def test_voice_of_drops_and_rejects_unknown_notes():
@@ -189,6 +219,25 @@ def test_undecided_lists_defaults_only():
         (lambda r: r["beatbox"]["sound_end"].update(fade_ms=-1), "outside"),
         (lambda r: r["beatbox"]["sound_end"].update(fade_ms=600), "longer than max_ms"),
         (lambda r: r["beatbox"]["sound_end"].pop("max_ms"), "missing key"),
+        (lambda r: r["rendering"].update(kits={}), "list of kit entries"),
+        (lambda r: r["rendering"]["kits"][0]["note_map"].pop(38), "must map every"),
+        (lambda r: kit_note(r, 99, 99), "not in drum_map"),
+        (lambda r: kit_note(r, 38, None), "must play a sound"),
+        (lambda r: kit_note(r, 42, {"key": None, "cc": {4: 0}}), "must play a sound"),
+        (lambda r: kit_note(r, 38, 128), "outside"),
+        (lambda r: kit_note(r, 38, {"key": 38, "cc": {4: 200}}), "outside"),
+        (lambda r: kit_note(r, 38, {"key": 38, "cc": {200: 1}}), "outside"),
+        (lambda r: kit_note(r, 38, {"key": 38}), "missing key"),
+        (lambda r: kit_note(r, 38, {"key": 38, "cc": {}, "vel": 1}), "unknown key"),
+        (lambda r: kit(r, type="vintage"), "not one of"),
+        (lambda r: kit(r, split="validation"), "not one of"),
+        (lambda r: kit(r, kit_id="Black Pearl"), "lowercase"),
+        (lambda r: kit(r, kit_id=r["rendering"]["kits"][1]["kit_id"]), "appears twice"),
+        (lambda r: kit(r, program="/abs/kit.sfz"), "inside data/raw/kits"),
+        (lambda r: kit(r, program="../outside/kit.sfz"), "inside data/raw/kits"),
+        (lambda r: kit(r, samples="a/../../b"), "inside data/raw/kits"),
+        (lambda r: kit(r, controls=[7]), "mapping of CC"),
+        (lambda r: r["rendering"]["kits"][0].pop("controls"), "missing key"),
     ],
 )
 def test_invalid_specs_are_rejected(raw, edit, message):
