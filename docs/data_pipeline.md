@@ -181,7 +181,7 @@ Joshua's formerly missing rules are now in spec v0.4 and `clip_grid()`,
 `has_min_hits()`, and `dualize()` are implemented. Use `docs/week3_handoff.md`
 as the current coordination reference.
 
-Next, extract AVP sounds using the approved `beatbox.sound_end` settings and
+AVP sample extraction is now implemented below. Next, use those samples to
 build a small synthetic beatbox batch. Drum rendering can use the new
 `tools/render/` sampler once kit samples are available locally; the approximately
 1.9 GB kit download is a separate step requiring confirmation. Kit note maps
@@ -263,6 +263,109 @@ annotations, duplicate onsets, and unchanged original audio bytes.
 A future generator can select, for example, a kick annotation from one participant
 and locate it in the source WAV. The approved `beatbox.sound_end` policy now specifies 30 dB below peak,
 the next annotated onset, or 500 ms, whichever comes first, plus a 10 ms fade.
-Sample extraction using that policy is the next implementation step. Before training, assign participant-disjoint splits
+Sample extraction using that policy is implemented below. Before training, assign participant-disjoint splits
 and select the approved mode/recording kinds. Cataloging everyone together is
 not permission to use everyone's sounds for training.
+
+## AVP individual sound extraction (implemented)
+
+`src/queries/extract_avp.py` turns the onset catalog into individual playable WAV
+files. These are the mouth-sound ingredients for the future beatbox generator;
+they are not yet complete rhythmic queries or paired training examples.
+
+### Listen or regenerate
+
+The local extraction has already run. Open
+`results/avp_samples/preview.html` in a browser and press the audio play buttons.
+The page provides 16 examples: one per source class, mode, and recording category.
+Examples are selected deterministically from the first successfully extracted
+sound in each group, rather than chosen by ear. Waveform heights are scaled
+individually for visibility; playback preserves the original sound level.
+
+To regenerate from the IDE, open `src/queries/extract_avp.py` and select
+**Run Python File** with the project's `.venv` interpreter. Terminal equivalent:
+
+```bash
+.venv/bin/python -m src.queries.extract_avp
+```
+
+The extractor refreshes its own onset index under `results/avp_samples/index/`
+using the existing index builder, then uses approved `avp_modes`,
+`avp_recordings`, and `avp_labels` from the spec. Both Personal and Fixed modes
+and isolated/improvisation recordings are currently approved. Each sample keeps
+its source participant and mode; there are no participant split assignments yet.
+
+### How sound endings are measured
+
+The duration and fade settings come exclusively from `beatbox.sound_end`:
+30 dB below peak, next annotated onset, or 500 ms, whichever comes first. The
+recording end is also a hard boundary.
+
+To measure sound level reliably rather than stopping at a waveform zero crossing,
+the implementation follows the existing inventory's **10 ms RMS envelope**
+approach. RMS is a short-window average signal-level measure. The window size is
+an explicit technical measurement choice, not an additional musical threshold.
+For multichannel inputs, energy is pooled across channels for this measurement;
+the actual output retains all channels.
+
+Within the allowed interval, it finds the highest-level envelope frame, then
+stops at the start of the first subsequent frame at or below the configured
+relative threshold. Initial silence or the quieter start of an attack therefore
+does not immediately end a sample. Measurement precision is one envelope frame;
+any final partial frame is included in the analysis.
+
+The 10 ms linear fade is applied **inside the retained tail**, ending at the
+chosen cutoff, rather than extending past the next onset or duration cap. A
+shorter sound uses a shorter fade. Joshua should audition this concrete envelope
+and fade interpretation before the dataset freeze. Samples that are empty,
+silent, nonfinite, or unusable after fading are logged and excluded.
+
+For boundary safety, next-onset limits are read from **all finite source
+annotations**, even if the next sound had an invalid/blank label and was excluded
+from the searchable index. We never silently stretch a sound over such an onset.
+The first sample at/after the annotated start is selected, and output does not
+cross the first sample at/after the next onset.
+
+### Outputs
+
+Everything stays under the gitignored `results/avp_samples/` directory:
+
+| File/folder | Purpose |
+|---|---|
+| `samples/` | Individual float-format WAV sounds, retaining source sample rate and channels |
+| `sample_catalog.csv` | Sample paths, source identities, participant/mode/class, annotations, actual boundaries, duration, and stopping reason |
+| `extraction_issues.csv` | Any selected sounds that could not be extracted; headers only when none failed |
+| `summary.json` | Spec version, applied settings, source root, counts, and pending split/listening status |
+| `preview.html` | Playable examples and waveform previews for human review |
+| `index/` | Refreshed annotation index and validation logs used by this extraction |
+
+Sample paths are relative to the output directory; original audio paths are
+relative to `source_root` in the summary. `start_frame` and exclusive `end_frame`
+are positions in the original recording. `frames` counts retained samples per
+channel, `duration_s` is the extracted sound's duration, and `fade_frames` records
+how much of its tail was faded. Participant and mode remain separate fields so
+future query generation can keep one participant and one mode per recording.
+
+Float WAV avoids introducing PCM quantization or clipping when writing samples.
+No resampling, loudness normalization, or beginning fade is applied, and source
+recordings are never modified. Re-running replaces current outputs at stable
+paths. Older WAVs may remain if source selection changes; the **current sample
+catalog**, not a recursive folder scan, defines the usable collection.
+
+### Verified local run (2026-11-05)
+
+- 9,776 selected annotations; 9,776 sounds extracted; zero skipped extractions.
+- 28 participants, with both modes and recording categories represented.
+- Stop reasons: 7,209 decay, 2,288 next onset, 206 duration cap, 73 recording end.
+- Sixteen playable audition examples. No participant splits assigned.
+
+`tests/test_avp_samples.py` verifies delayed attacks, decay measurement, duration
+and next-onset caps, recording ends, multichannel preservation, short fades,
+silent/invalid inputs, and boundaries at annotations with blank labels. It also
+checks catalog provenance, unchanged source bytes, and preview generation.
+
+Listening is still required: check that the attack is present, the tail sounds
+natural, and another utterance has not leaked in. Technical tests cannot approve
+how these sounds are perceived. After that review, the next implementation is
+arranging these samples according to labeled MIDI patterns, followed by paired
+drum renders, participant/kit splits, and final manifests.
