@@ -43,6 +43,20 @@ def test_padding_does_not_change_a_clips_embedding():
     torch.testing.assert_close(alone, batched, atol=1e-5, rtol=1e-5)
 
 
+@pytest.mark.parametrize("lengths", [(41, 300), (37, 38), (1, 129)])
+def test_strided_tokens_ignore_padding_and_rounding(lengths):
+    """Odd lengths (not a multiple of the stride) and rounded-up padding change nothing."""
+    model = make()
+    short, long_ = clips(lengths, seed=3)
+    x1, l1 = pad_features([short])
+    x2, l2 = pad_features([short, long_], multiple=64)
+    assert x2.shape[1] % 64 == 0
+    with torch.no_grad():
+        alone = model(x1, l1, kind_ids(["tap"]))[0]
+        batched = model(x2, l2, kind_ids(["tap", "library"]))[0]
+    torch.testing.assert_close(alone, batched, atol=1e-5, rtol=1e-5)
+
+
 def test_kind_token_changes_the_embedding():
     model = make()
     x, lengths = pad_features(clips([60, 60]))

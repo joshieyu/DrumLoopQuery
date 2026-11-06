@@ -29,6 +29,10 @@ features:
 
 # The shared encoder: 4-layer Transformer, width 128, 128-d output of length 1.
 encoder:
+  # A strided convolution merges every frame_stride frames into one token (2: one token
+  # per ~20 ms, finer than the shortest grid step, 31 ms at 160 BPM). One token per
+  # frame made training ~50x slower (~230 s per epoch on the practice data).
+  frame_stride: 2
   d_model: 128
   n_layers: 4
   n_heads: 4
@@ -40,3 +44,14 @@ encoder:
 loss:
   name: supcon
   temperature: 0.1
+
+# Training (src/models/train.py). A batch holds batch_patterns patterns with
+# views_per_pattern versions each (kits, voices, sloppiness), so every clip has positives.
+training:
+  batch_patterns: 32
+  views_per_pattern: 3
+  learning_rate: 3.0e-4
+  weight_decay: 0.01
+  epochs: 30
+  max_grad_norm: 1.0     # clip large gradients; without it some seeds collapse
+  seed: 0

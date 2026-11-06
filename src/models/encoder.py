@@ -9,7 +9,12 @@
 One network for every input, so queries and library loops land in the same space.
 In order:
 
-1. A linear projection of each feature frame to d_model, then LayerNorm.
+1. A strided convolution (kernel 2s + 1, stride s = encoder.frame_stride) that merges
+   every s feature frames into one d_model token, then LayerNorm. Each token reads
+   2s + 1 frames, so where a hit falls inside it is kept in its values; only the
+   attention works at the coarser spacing. With s = 2 a token is ~20 ms. One token
+   per 10 ms frame made training ~50x slower, since attention cost grows with the
+   square of the number of tokens.
 2. A learned token for the input's kind (library loop, beatbox, or tap) in front of
    the frames, so the network knows what it is listening to.
 3. Sinusoidal positions, then n_layers pre-norm Transformer blocks.
@@ -42,6 +47,7 @@ from torch import nn
 from src.models.config import EncoderConfig
 
 INPUT_KINDS = ("library", "beatbox", "tap")
+PAD_MULTIPLE = 64  # frames; batches are padded to a multiple of this (see pad_features)
 
 
 def kind_ids(kinds: Sequence[str]) -> torch.Tensor:
@@ -53,9 +59,14 @@ def kind_ids(kinds: Sequence[str]) -> torch.Tensor:
 
 
 def pad_features(
-    features: Sequence[np.ndarray | torch.Tensor],
+    features: Sequence[np.ndarray | torch.Tensor], multiple: int = 1
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    """Stack clips of different lengths: (B, T_max, F) zero-padded, and lengths (B,)."""
+    """Stack clips of different lengths: (B, T, F) zero-padded, and lengths (B,).
+
+    T is the longest clip rounded up to `multiple`. Padding is masked, so it never
+    changes an embedding; rounding up just means fewer distinct shapes, which keeps
+    GPU backends (Apple's mps especially) from rebuilding kernels for every batch.
+    """
     if not features:
         raise ValueError("no clips to pad")
     tensors = [torch.as_tensor(np.asarray(f), dtype=torch.float32) for f in features]
@@ -65,7 +76,9 @@ def pad_features(
     if any(t.shape[0] == 0 for t in tensors):
         raise ValueError("a clip has no frames")
     lengths = torch.tensor([t.shape[0] for t in tensors], dtype=torch.long)
-    return nn.utils.rnn.pad_sequence(tensors, batch_first=True), lengths
+    x = nn.utils.rnn.pad_sequence(tensors, batch_first=True)
+    extra = (-x.shape[1]) % max(multiple, 1)
+    return F.pad(x, (0, 0, 0, extra)), lengths
 
 
 def sinusoidal_positions(
@@ -140,7 +153,8 @@ class RhythmEncoder(nn.Module):
         d = cfg.d_model
         self.cfg = cfg
         self.n_features = n_features
-        self.input_proj = nn.Linear(n_features, d)
+        s = cfg.frame_stride
+        self.stem = nn.Conv1d(n_features, d, kernel_size=2 * s + 1, stride=s, padding=s)
         self.input_norm = nn.LayerNorm(d)
         self.kind_token = nn.Embedding(len(INPUT_KINDS), d)
         nn.init.normal_(self.kind_token.weight, std=0.02)  # small, as in BERT and ViT
@@ -167,12 +181,17 @@ class RhythmEncoder(nn.Module):
             raise ValueError("every length must be between 1 and the padded length")
 
         device = features.device
-        frames = self.input_norm(self.input_proj(features))
-        token = self.kind_token(kinds.to(device))[:, None, :]
-        x = torch.cat([token, frames], dim=1)  # position 0 is the kind token
-        x = self.drop(x + sinusoidal_positions(t + 1, x.shape[2], device, x.dtype))
-        # Real tokens: the kind token plus each clip's own frames.
-        valid = torch.arange(t + 1, device=device)[None, :] <= lengths.to(device)[:, None]
+        s = self.cfg.frame_stride
+        # (B, T, F) -> (B, ceil(T / s), d). Frames past a clip's end are zeros, exactly as
+        # the convolution's own padding, so a clip's tokens don't depend on its batch.
+        tokens = self.input_norm(self.stem(features.transpose(1, 2)).transpose(1, 2))
+        n_tokens = (lengths.to(device) + s - 1) // s
+        kind = self.kind_token(kinds.to(device))[:, None, :]
+        x = torch.cat([kind, tokens], dim=1)  # position 0 is the kind token
+        n = x.shape[1]
+        x = self.drop(x + sinusoidal_positions(n, x.shape[2], device, x.dtype))
+        # Real tokens: the kind token plus each clip's own tokens.
+        valid = torch.arange(n, device=device)[None, :] <= n_tokens[:, None]
 
         for block in self.blocks:
             x = block(x, valid)

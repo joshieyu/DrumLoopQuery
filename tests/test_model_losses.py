@@ -103,5 +103,6 @@ def test_encoder_learns_a_toy_retrieval_task(seed):
         torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)  # as the trainer will
         opt.step()
         losses.append(loss.item())
-    assert sum(losses[-5:]) / 5 < 1.0
-    assert sum(losses[-5:]) / 5 < 0.5 * sum(losses[:5]) / 5
+    # Starts near log(11) = 2.4 (every clip alike); ends near the optimum, log 2 = 0.69.
+    assert losses[0] > 2.0
+    assert sum(losses[-5:]) / 5 < 0.8

@@ -17,7 +17,7 @@ so a typo in the YAML can't silently change an experiment.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from itertools import pairwise
 from pathlib import Path
 from typing import Any
@@ -66,6 +66,7 @@ class R3Config:
 
 @dataclass(frozen=True)
 class EncoderConfig:
+    frame_stride: int  # feature frames merged into one token by the input convolution
     d_model: int
     n_layers: int
     n_heads: int
@@ -81,6 +82,17 @@ class LossConfig:
 
 
 @dataclass(frozen=True)
+class TrainingConfig:
+    batch_patterns: int
+    views_per_pattern: int
+    learning_rate: float
+    weight_decay: float
+    epochs: int
+    max_grad_norm: float
+    seed: int
+
+
+@dataclass(frozen=True)
 class ModelConfig:
     version: str
     audio: AudioConfig
@@ -88,7 +100,30 @@ class ModelConfig:
     r3: R3Config
     encoder: EncoderConfig
     loss: LossConfig
+    training: TrainingConfig
     path: Path
+
+
+def config_to_dict(cfg: ModelConfig) -> dict:
+    """A JSON-friendly copy of a config, as saved inside checkpoints."""
+    d = asdict(cfg)
+    d["path"] = str(cfg.path)
+    return d
+
+
+def config_from_dict(d: dict) -> ModelConfig:
+    """Rebuild a config saved by config_to_dict (e.g. from a checkpoint)."""
+    r1 = dict(d["r1"], band_edges_hz=tuple(d["r1"]["band_edges_hz"]))
+    return ModelConfig(
+        version=d["version"],
+        audio=AudioConfig(**d["audio"]),
+        r1=R1Config(**r1),
+        r3=R3Config(**d["r3"]),
+        encoder=EncoderConfig(**d["encoder"]),
+        loss=LossConfig(**d["loss"]),
+        training=TrainingConfig(**d["training"]),
+        path=Path(d["path"]),
+    )
 
 
 def load_model_config(path: str | Path | None = None) -> ModelConfig:
@@ -101,7 +136,7 @@ def load_model_config(path: str | Path | None = None) -> ModelConfig:
 
 def parse_model_config(raw: Any, path: Path = DEFAULT_PATH) -> ModelConfig:
     """Build a ModelConfig from the parsed YAML, checking every value."""
-    top = _keys(raw, ["version", "audio", "features", "encoder", "loss"], str(path))
+    top = _keys(raw, ["version", "audio", "features", "encoder", "loss", "training"], str(path))
 
     a = _keys(top["audio"], ["sample_rate", "n_fft", "hop_length"], "audio")
     audio = AudioConfig(
@@ -143,10 +178,11 @@ def parse_model_config(raw: Any, path: Path = DEFAULT_PATH) -> ModelConfig:
 
     e = _keys(
         top["encoder"],
-        ["d_model", "n_layers", "n_heads", "ff_dim", "dropout", "embed_dim"],
+        ["frame_stride", "d_model", "n_layers", "n_heads", "ff_dim", "dropout", "embed_dim"],
         "encoder",
     )
     encoder = EncoderConfig(
+        frame_stride=_int(e["frame_stride"], "encoder.frame_stride", lo=1),
         d_model=_int(e["d_model"], "encoder.d_model", lo=1),
         n_layers=_int(e["n_layers"], "encoder.n_layers", lo=1),
         n_heads=_int(e["n_heads"], "encoder.n_heads", lo=1),
@@ -166,7 +202,30 @@ def parse_model_config(raw: Any, path: Path = DEFAULT_PATH) -> ModelConfig:
         name=lo_["name"], temperature=_num(lo_["temperature"], "loss.temperature", lo=1e-6)
     )
 
-    return ModelConfig(str(top["version"]), audio, r1, r3, encoder, loss, Path(path))
+    t = _keys(
+        top["training"],
+        [
+            "batch_patterns",
+            "views_per_pattern",
+            "learning_rate",
+            "weight_decay",
+            "epochs",
+            "max_grad_norm",
+            "seed",
+        ],
+        "training",
+    )
+    training = TrainingConfig(
+        batch_patterns=_int(t["batch_patterns"], "training.batch_patterns", lo=1),
+        views_per_pattern=_int(t["views_per_pattern"], "training.views_per_pattern", lo=2),
+        learning_rate=_num(t["learning_rate"], "training.learning_rate", lo=1e-12),
+        weight_decay=_num(t["weight_decay"], "training.weight_decay", lo=0),
+        epochs=_int(t["epochs"], "training.epochs", lo=1),
+        max_grad_norm=_num(t["max_grad_norm"], "training.max_grad_norm", lo=1e-12),
+        seed=_int(t["seed"], "training.seed", lo=0),
+    )
+
+    return ModelConfig(str(top["version"]), audio, r1, r3, encoder, loss, training, Path(path))
 
 
 # --------------------------------------------------------------------------- helpers
