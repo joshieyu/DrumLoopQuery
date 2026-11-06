@@ -291,7 +291,8 @@ D writes the scoring code that measures how often the right loop shows up at or 
 **Milestones:**
 
 - **M1, end of week 1:** file contracts (Section 12) agreed and written down; first version of `music_spec.md` shared.
-- **M2, end of week 3: dataset and query generator frozen, after A's musical sign-off.** This is the critical path. C and D work on preliminary data until then rather than waiting.
+- **Class presentation, around 2026-11-19 (week 5):** a v0 data snapshot is frozen on 2026-11-09. First numbers are due 2026-11-12, and final numbers, including a short real-query session, 2026-11-16. See `docs/presentation_plan.md`.
+- **M2, after the presentation (planned for the end of week 3): dataset and query generator frozen, after A's musical sign-off.** This is the critical path. C and D work on preliminary data until then rather than waiting.
 - **M3, end of week 5:** every system has numbers on every test set, even if bad.
 - **M4, end of week 7:** all tables and figures final; no new experiments after this.
 
