@@ -369,3 +369,94 @@ natural, and another utterance has not leaked in. Technical tests cannot approve
 how these sounds are perceived. After that review, the next implementation is
 arranging these samples according to labeled MIDI patterns, followed by paired
 drum renders, participant/kit splits, and final manifests.
+
+## First drum-library audition batch (implemented)
+
+This is the first checkpoint toward library audio: **nine playable drum loops**
+rendered from our labeled GMD catalog. There are three source performances per
+official split, through one configured kit (currently AVL Black Pearl). Source
+selection is deterministic and uses different performances within each batch.
+Known cross-split pattern conflicts are omitted from this preview only; the
+final conflict-removal policy remains a team decision.
+
+### Listen or regenerate
+
+Open `results/library_preview/preview.html` in a browser. The nine audio players
+let Joshua review the drum mappings and cut boundaries before we scale up.
+There is a short lead-in before the pattern and natural decay afterward.
+Technical checks do not establish whether the kit sounds musically right.
+
+The 14.2 MB Black Pearl archive was downloaded using the existing downloader;
+the source/license/credit record is in `data/raw/SOURCES.md`. The full kit
+collection was not downloaded. Mappings are still drafts and no kit train/test
+assignment has been made. This checkpoint uses only the already-configured kit,
+without changing musical decisions or other teammates' interfaces.
+
+To regenerate, open `src/library/render_preview.py` and select **Run Python
+File** using `.venv`, or use:
+
+```bash
+.venv/bin/python -m src.library.render_preview
+```
+
+The script defaults to the first kit in the shared spec and three clips per
+source split. `--kit <kit_id>`, `--per-split N`, and `--seed N` are optional.
+Kit samples must already exist locally. Unsupported sampler programs, missing
+samples, mapping problems, failed catalogs, or stale spec versions cause an
+explicit failure. Labels are rechecked against the current spec before rendering.
+
+### What is rendered
+
+The renderer reuses Joshua's `original_hits()` listening helper to select raw
+hits owned by the window, then `kit_hits()` applies the configured note map and
+`Sampler` generates stereo audio. It never plays the entire one-beat labeling
+context. Original timing, velocity, quiet hits, flams, and dropped-label drum
+categories are preserved in drum audio, as required by the spec.
+
+The helper's half-grid-step onset boundary convention is reused unchanged. Audio
+gets the existing listening tool's 0.25-second pre-roll so early hits are audible.
+Output extends at least through the whole pattern, and longer if drum tails
+require it. Thus audio duration can exceed the eight-beat pattern duration.
+This is an audition representation, not the final fixed-window model input.
+
+Loudness uses the **existing listening normalization**, targeting -20 dB RMS
+with a -1 dB peak ceiling. This makes previews convenient to compare; production
+library loudness normalization is still a separate decision/implementation.
+The script does not change `config/music_spec.yaml` or normalize the source kits.
+
+### Outputs and manifest
+
+All generated files are gitignored under `results/library_preview/`:
+
+| File/folder | Purpose |
+|---|---|
+| `audio/` | Stereo WAV loop previews |
+| `library_manifest.csv` | Team-contract base columns plus preview timing, source bar, kit split, level, and status fields |
+| `listening_notes.csv` | Empty verdict/notes fields for Joshua's review; existing matching-ID notes are preserved on reruns |
+| `summary.json` | Kit/spec provenance, selection and boundary policies, path bases, and pending status |
+| `preview.html` | Nine playable examples with source and pattern identities |
+
+This manifest is deliberately kept in the preview directory, **not** the final
+`manifests/` directory. Every row is marked `audition_only`. `split` is the source
+pattern split, while `kit_split` remains empty until Joshua assigns it. This kit
+appearing against all three source splits does not establish a valid kit-disjoint
+training set. Do not treat this preview as ready for training/evaluation.
+
+`audio_path` is relative to the repository when inside it, or absolute for an
+external output folder; `midi_path` remains relative to the GMD root. Both bases
+are stated in `summary.json`. Render IDs distinguish source window, kit,
+recorded tempo mode, and seed. `pattern_duration_s` excludes pre-roll/tails;
+`duration_s` measures the actual audio file. Reruns replace audio at stable paths;
+the current manifest defines the active set if older files remain on disk.
+
+### Verification and next checkpoint
+
+`tests/test_library_preview.py` renders a real tiny SFZ fixture and checks early
+hits, exclusion of neighbouring context, preservation of dropped-label sounds,
+stored-label consistency, audio timing/channels, peak ceiling, manifest paths,
+source splits, stale catalogs, conflict omission, and retained review notes.
+
+The local checkpoint produced nine non-silent stereo WAVs at 44.1 kHz with no
+kit mapping-check warnings. Listen before expanding. Next, build a small
+beatbox/drum paired preview; after Joshua's review, add the remaining kits,
+final audio formatting/normalization, split enforcement, and full manifests.
