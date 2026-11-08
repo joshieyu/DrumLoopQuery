@@ -460,3 +460,118 @@ The local checkpoint produced nine non-silent stereo WAVs at 44.1 kHz with no
 kit mapping-check warnings. Listen before expanding. Next, build a small
 beatbox/drum paired preview; after Joshua's review, add the remaining kits,
 final audio formatting/normalization, split enforcement, and full manifests.
+
+## First paired beatbox/drum audition (implemented)
+
+`src/queries/beatbox_preview.py` now assembles the extracted mouth sounds into
+complete rhythms and pairs them with the nine existing drum previews. The local
+run produced **18 synthetic beatbox queries: Personal and Fixed versions for
+each drum loop**. This is a clean listening checkpoint before v0 augmentation.
+
+### Listen, regenerate, or share
+
+Open `results/beatbox_pairs/preview.html` in a browser. Each section has the
+drum recording followed by two generated beatbox players. Play one at a time
+to compare the rhythms. Both use the same short lead-in, and both retain tails.
+
+To regenerate, open `src/queries/beatbox_preview.py` and choose **Run Python
+File**, or use:
+
+```bash
+.venv/bin/python -m src.queries.beatbox_preview
+```
+
+Required inputs are the outputs of `catalog_gmd.py`, `extract_avp.py`, and
+`render_preview.py`. Their generation instructions appear above. `--library`,
+`--catalog`, `--samples`, `--out`, and `--seed` can override the defaults.
+The script rejects spec-version mismatches and missing/inconsistent target labels.
+No new download is needed.
+
+For listening feedback, share the entire generated `results/beatbox_pairs/`
+folder: the page uses relative links and includes copies of the nine drum WAVs
+as well as the 18 query WAVs. These generated files are gitignored, so pulling
+the repository alone does not transfer them. Catalog paths inside manifests
+refer to their generation machine; the HTML/audio listening folder is portable.
+
+### How the beatbox is constructed
+
+The target rhythm grid and pattern ID come from `clip_grid()`. The generator
+uses the shared rhythm implementation's internal flam and nearest-step helpers
+to recover the winning original pitch/velocity without inventing another
+rounding or merging definition. If these helpers change, rerun the preview
+tests and regenerate the source catalog as required by the spec version.
+
+The implementation then:
+
+1. Voices labeled kick/snare/hat events, with the spec's velocity exclusions.
+   Dropped categories do not receive mouth sounds.
+2. Optionally thins complete straight-sixteenth hat beats, using the configured
+   probability (currently 0.5). The concrete first implementation recognizes
+   all four quarter-beat positions within a beat, makes one seeded decision for
+   that beat, and removes the two off-eighth positions. It leaves incomplete,
+   triplet, and other irregular hat sequences alone. Joshua should review this
+   interpretation before scaling up.
+3. Applies `simultaneous_priority`: one voiced onset per grid step, kick before
+   snare before hats. Existing sound tails may overlap naturally.
+4. Uses AVP `kd` for kick and `sd` for snare. The winning open-hat pitch uses
+   `open_hat_sound`; all other hats-category pitches use `hats_sound`.
+5. Randomly selects eligible extracted sounds from **one participant and one
+   mode per query**, with source IDs and paths recorded for every placement.
+   Both approved recording categories can contribute sounds within that mode.
+6. Places sounds at the canonical grid positions converted to seconds using the
+   original tempo, plus the drum preview's pre-roll. It mixes samples to mono,
+   preserves their full tails, and applies existing audition normalization.
+
+This checkpoint deliberately adds no offset, jitter, drift, random dropped hits,
+or background noise. The manifest records zeros for the absent timing/drop
+effects and a blank `snr_db` for no added noise. Clean previews still include
+the approved beatbox simplifications; they are not exact copies of the drum hit
+sequence. The source pattern ID remains the retrieval target after simplification.
+
+Random choices are reproducible: each query's seed is derived from its target
+render ID, participant, mode, and the command's seed. Sample rates must agree
+within a query; mixed rates fail explicitly rather than silently resampling.
+The AVP sample rate and the drum audio sample rate need not be equal for
+separate browser playback, because placement is calculated in seconds.
+
+### Outputs and current status
+
+Generated files under `results/beatbox_pairs/`:
+
+| File/folder | Purpose |
+|---|---|
+| `preview.html` | Side-by-side players for each drum target and its two beatbox queries |
+| `drums/`, `queries/` | Copied drum previews and newly generated beatbox WAVs |
+| `query_manifest.csv` | Team-contract query fields plus mode, target render ID, seed, timing, simplification counts, and audition status |
+| `library_manifest.csv` | Drum preview manifest pointing to the copied audio |
+| `events.jsonl` | One object per query, tracing each event to an extracted AVP sound and its placement |
+| `listening_notes.csv` | Verdict/notes fields; matching query-ID reviews survive regeneration |
+| `summary.json` | Spec version, query counts, participant allocation, and explicit clean-preview policies |
+
+The local run uses P1 for test-source examples, P2 for train-source examples,
+and P3 for validation-source examples. This small deterministic allocation keeps
+preview participants separate across source splits; it **does not implement or
+approve the final 20/3/5 participant split**. Kit splits and listening sign-off
+also remain pending. All query rows are marked `audition_only_clean`; these
+manifests stay under results rather than replacing the final team manifests.
+
+The source patterns retain their IDs. A simplified query need not sound every
+hit from its target drum recording: that is intentional, not a new relevance
+definition. Later evaluation still uses the original exact target pattern ID.
+
+`tests/test_beatbox_preview.py` verifies simultaneous priority, open/closed hat
+mapping, sixteenth thinning, quiet-hit exclusion, deterministic output,
+single-participant/mode provenance, sample placement, matching exported target
+labels, and self-contained HTML/audio generation.
+
+### Review checkpoint and next work
+
+Listen for recognizable correspondence between drum and beatbox rhythms,
+reasonable missing simultaneous sounds/hats, preserved vocal attacks and decay,
+and unnatural sample joins. Joshua should judge the musical result; passing
+technical tests does not establish realism.
+
+After this review, add v0 offset, jitter, dropped hits, and noise from the spec;
+finalize participant and kit split assignments; settle cross-split conflicts;
+and scale up the dataset with the final audio format and manifests. These clean
+paired previews are the checkpoint, not the completed v0 data freeze.
