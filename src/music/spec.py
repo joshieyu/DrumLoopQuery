@@ -30,6 +30,7 @@ AVP_RECORDINGS = ("isolated", "improvisation")  # single-sound takes vs. improvi
 FLAM_KEEP = ("first", "loudest")
 MATCH_RULES = ("exact",)  # how grids compare; near-match rules would join this list
 BOUNDARIES = ("nearest_step", "raw")
+CLIP_ENDS = ("cut", "ring")  # cut: stop at the end of the last bar; ring: let tails decay
 KIT_TYPES = ("acoustic", "electronic", "lo-fi", "other")  # spec §4 kit table
 SPLITS = ("train", "test")
 
@@ -62,6 +63,15 @@ class SameRhythm:
 
 
 @dataclass(frozen=True)
+class ClipAudio:
+    """How every clip's audio is framed: library loops and fake queries alike."""
+
+    lead_in_s: float  # silence before the first downbeat, so early hits aren't cut
+    end: str  # one of CLIP_ENDS
+    end_fade_ms: float  # fade-out at a cut
+
+
+@dataclass(frozen=True)
 class Loops:
     bars: int
     time_signatures: tuple[str, ...]
@@ -74,6 +84,7 @@ class Loops:
     hop_bars: int | None  # None until the spec decides
     max_loops_per_performance: int | None
     remove_duplicates_within_performance: bool
+    audio: ClipAudio
 
 
 @dataclass(frozen=True)
@@ -92,7 +103,7 @@ class Kit:
     type: str  # one of KIT_TYPES
     program: str  # its SFZ program, relative to data/raw/kits
     samples: str | None  # folder its sample paths start from, if not the program's own
-    split: str | None  # "train" or "test"; None until the music lead assigns it
+    split: str | None  # "train" or "test"; None: not used (unassigned or can't render yet)
     controls: dict[int, int]  # CC values (0..127) held for the whole render
     note_map: dict[int, KitNote]  # every drum_map note
 
@@ -424,6 +435,12 @@ def parse_spec(raw: Any, path: Path = DEFAULT_PATH) -> MusicSpec:
         raise SpecError(f"loops.time_signatures: use GMD's '4-4' format, got {list(sigs)}")
     max_loops = lp["max_loops_per_performance"]
     hop = lp["hop_bars"]
+    a = _keys(lp["audio"], [f.name for f in ClipAudio.__dataclass_fields__.values()], "loops.audio")
+    audio = ClipAudio(
+        lead_in_s=_num(a["lead_in_s"], "loops.audio.lead_in_s", 0, 5),
+        end=_choice(a["end"], CLIP_ENDS, "loops.audio.end"),
+        end_fade_ms=_num(a["end_fade_ms"], "loops.audio.end_fade_ms", 0, 1000),
+    )
     loops = Loops(
         bars=_int(lp["bars"], "loops.bars", 1),
         time_signatures=sigs,
@@ -445,6 +462,7 @@ def parse_spec(raw: Any, path: Path = DEFAULT_PATH) -> MusicSpec:
             lp["remove_duplicates_within_performance"],
             "loops.remove_duplicates_within_performance",
         ),
+        audio=audio,
     )
 
     r = _keys(

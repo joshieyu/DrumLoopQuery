@@ -121,7 +121,7 @@ The musical choices below are defaults. The final versions live in `music_spec.m
 3. Quantize each clip to a grid of **12 ticks per beat**. This resolution represents both straight 16ths and triplet swing, so "straight" and "swung" patterns stay distinct.
 4. **Pattern ID** = hash of the 3-voice quantized grid. Clips with identical grids share an ID (this deduplicates repeated bars within a performance).
 5. Render audio. Use E-GMD audio where available, plus our own renders of the MIDI with open drum-sample kits at several tempos (for example 80–140 BPM).
-6. **Splits:** use GMD's official train/val/test split for patterns. Hold out a set of kits for test only.
+6. **Splits:** use GMD's official train/val/test split for patterns. Hold out a set of kits for test only (`rendering.kits` in `config/music_spec.yaml`). A pattern found in more than one GMD split keeps only its most held-out copy (test, then validation) and loses the others, so the official test split stays whole. Today's 3 clashes (two train–validation, one train–test) all lose their training copies (decided 2026-11-09).
 
 ### 5.3 Query synthesis (A decides, B builds)
 
@@ -291,7 +291,7 @@ D writes the scoring code that measures how often the right loop shows up at or 
 **Milestones:**
 
 - **M1, end of week 1:** file contracts (Section 12) agreed and written down; first version of `music_spec.md` shared.
-- **Class presentation, around 2026-11-19 (week 5):** a v0 data snapshot is frozen on 2026-11-09. First numbers are due 2026-11-12, and final numbers, including a short real-query session, 2026-11-16. See `docs/presentation_plan.md`.
+- **Class presentation, around 2026-11-19 (week 5):** the v0 data is handed to C on 2026-11-11. First numbers are due 2026-11-12, and final numbers, including a short real-query session, 2026-11-16. See `docs/presentation_plan.md`.
 - **M2, after the presentation (planned for the end of week 3): dataset and query generator frozen, after A's musical sign-off.** This is the critical path. C and D work on preliminary data until then rather than waiting.
 - **M3, end of week 5:** every system has numbers on every test set, even if bad.
 - **M4, end of week 7:** all tables and figures final; no new experiments after this.

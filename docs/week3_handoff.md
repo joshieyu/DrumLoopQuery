@@ -4,7 +4,7 @@ What's new since week 2, what the data freeze still needs, and what to settle on
 
 > **Update 2026-11-06:** the class presentation (around Nov 19) changes this week's plan. See [presentation_plan.md](presentation_plan.md). It settles call items 1 (the M2 date) and 4 (recording sessions):
 >
-> - A small v0 data snapshot is frozen on Nov 9, and M2 moves to after the talk.
+> - The v0 data is handed to C on Nov 11, and M2 moves to after the talk.
 > - A short recording session, about 10 beats each, runs Nov 13–16. The full sessions come after the talk.
 > - Since these notes were written, B's `cut_clips` in `src/library/clips.py` labels loops with the shared rhythm functions, and D's `src/eval/evaluate.py` is on GitHub.
 >

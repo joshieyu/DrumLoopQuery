@@ -5,7 +5,7 @@ import copy
 import pytest
 import yaml
 
-from src.music.spec import DEFAULT_PATH, KitNote, SpecError, load_spec, parse_spec
+from src.music.spec import DEFAULT_PATH, ClipAudio, KitNote, SpecError, load_spec, parse_spec
 from tools.inventory.gmd import GMD_NOTES
 
 
@@ -91,7 +91,6 @@ def test_2026_10_28_decisions():
     assert (sr.match, sr.flam_keep, sr.flam_chain) == ("exact", "loudest", True)
     assert sr.midpoint_priority == ((1,), (2,), (3, 4))
     assert (lp.boundary, lp.hop_bars) == ("nearest_step", 2)
-    assert spec.rendering.max_tempo_change_pct == 20
     assert bb.avp_modes == ("personal", "fixed")
     assert bb.avp_recordings == ("isolated", "improvisation")
     assert (bb.sound_end.below_peak_db, bb.sound_end.max_ms, bb.sound_end.fade_ms) == (30, 500, 10)
@@ -105,27 +104,44 @@ def test_2026_10_28_decisions():
     )
 
 
+def test_2026_11_09_decisions():
+    spec = load_spec()
+    assert spec.loops.audio == ClipAudio(lead_in_s=0.25, end="cut", end_fade_ms=20)
+    assert spec.rendering.max_tempo_change_pct == 0  # v0: recorded tempo only
+    assert spec.sloppiness.tempo_drift_pct == (0, 0)  # off for v0
+    assert spec.is_decided("rendering.kits")
+
+
 def test_open_questions_stay_open():
     spec = load_spec()
-    assert spec.rendering.kits  # drafts, waiting on the music lead's ears
     assert spec.sloppiness.swing_drift_per_bar is None
     assert spec.sloppiness.mic_eq is None
-    assert set(spec.undecided()) == {
-        "rendering.kits",
-        "sloppiness.swing_drift_per_bar",
-        "sloppiness.mic_eq",
-    }
+    assert set(spec.undecided()) == {"sloppiness.swing_drift_per_bar", "sloppiness.mic_eq"}
 
 
-def test_draft_kits_map_every_note():
+def test_kits_map_every_note():
     spec = load_spec()
     ids = [k.kit_id for k in spec.rendering.kits]
     assert len(ids) == len(set(ids))
     for kit in spec.rendering.kits:
         assert set(kit.note_map) == set(spec.note_to_group)
-        assert kit.split is None  # splits are assigned by the music lead
         for note, played in kit.note_map.items():
             assert played.key is not None or spec.voice_of(note) is None
+
+
+def test_kit_splits():
+    splits = {k.kit_id: k.split for k in load_spec().rendering.kits}
+    assert {k for k, s in splits.items() if s == "test"} == {"salamander", "muldjordkit"}
+    assert {k for k, s in splits.items() if s == "train"} == {
+        "avl_black_pearl",
+        "avl_red_zeppelin",
+        "avl_blonde_bop",
+        "avl_blonde_bop_hr",
+        "drskit",
+    }
+    assert splits["gogodze_phu_vol_ii"] is None  # can't render yet
+    # One physical kit played with two kinds of sticks: never split across train and test.
+    assert splits["avl_blonde_bop"] == splits["avl_blonde_bop_hr"]
 
 
 def test_kit_notes_can_carry_ccs():
@@ -173,7 +189,8 @@ def test_per_voice_ghost_thresholds(raw):
 def test_undecided_lists_defaults_only():
     spec = load_spec()
     undecided = spec.undecided()
-    assert "rendering.kits" in undecided
+    assert "sloppiness.mic_eq" in undecided
+    assert "rendering.kits" not in undecided
     assert "same_rhythm.steps_per_beat" not in undecided
     assert "drum_map.hihat_open" not in undecided
     assert all(spec.is_decided(u) == (u not in undecided) for u in spec.units)
@@ -238,6 +255,11 @@ def test_undecided_lists_defaults_only():
         (lambda r: kit(r, samples="a/../../b"), "inside data/raw/kits"),
         (lambda r: kit(r, controls=[7]), "mapping of CC"),
         (lambda r: r["rendering"]["kits"][0].pop("controls"), "missing key"),
+        (lambda r: r["loops"]["audio"].update(end="fade"), "not one of"),
+        (lambda r: r["loops"]["audio"].update(lead_in_s=-0.1), "outside"),
+        (lambda r: r["loops"]["audio"].update(end_fade_ms=-1), "outside"),
+        (lambda r: r["loops"]["audio"].pop("end"), "missing key"),
+        (lambda r: r["loops"].update(audio=0.25), "expected a mapping"),
     ],
 )
 def test_invalid_specs_are_rejected(raw, edit, message):

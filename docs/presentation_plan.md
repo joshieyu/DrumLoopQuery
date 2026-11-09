@@ -16,14 +16,15 @@ Everything else becomes the "remaining work" slide. After the talk, we go back t
 
 ## The v0 data snapshot
 
-v0 is a small, early version of the data, frozen on Mon Nov 9. It is not M2: the music lead gives it only a quick listen, and the full spec §9 sign-off waits until after the talk.
+v0 is a small, early version of the data, handed to C on Wed Nov 11. It is not M2: the music lead gives it only a quick listen, and the full spec §9 sign-off waits until after the talk.
 
 | | v0 |
 |---|---|
 | Loops | All GMD loops that pass the spec. Patterns use GMD's own split. |
-| Library audio | Every loop at its recorded tempo, through the 7 kits that render. Other tempos come later. The music lead names the held-out test kit or kits. |
-| Queries | Fake beatbox only, from AVP with the spec §5 rules. The only sloppiness is steady rush or drag, per-hit wobble, dropped hits and background noise; all values come from `config/music_spec.yaml`. AVP participants split 20 / 3 / 5. |
+| Library audio | Every loop at its recorded tempo, through the 7 kits that render. Other tempos come later. Test kits: Salamander and MuldjordKit; the other five train, and validation uses the training kits. Every clip starts 0.25 s before its downbeat and is cut at the end of bar 2. |
+| Queries | Fake beatbox only, from AVP with the spec §5 rules. The only sloppiness is steady rush or drag, per-hit wobble, dropped hits and background noise; all values come from `config/music_spec.yaml`. Queries are cut like the loops. AVP participants split 20 / 3 / 5. |
 | Answer key | Exact `pattern_id` match (`same_rhythm.match: exact`) |
+| Split clashes | A pattern found in more than one GMD split keeps only its most held-out copy (test, then validation). The 3 clashes today all lose their training copies, so the official test split stays whole. |
 
 Sizes, measured on 2026-11-06 with the music lead's prototype cutter (`tools/listen/grid_ab.cut_loops`, spec v0.4). B's pipeline may come out slightly different.
 
@@ -41,9 +42,10 @@ Sizes, measured on 2026-11-06 with the music lead's prototype cutter (`tools/lis
 
 | Dates | A, music lead | B, data | C, model | D, evaluation |
 |---|---|---|---|---|
-| Fri 6 – Sat 7 | Note maps for v0 and the held-out kits, by Sat (B needs them before rendering). Pick audio for the talk. | Loop manifest and library renders for all 3 splits | Encoder and training loop, trained on cross-kit pairs: the same loop on two kits | `relevance.json` and the onset baseline (`evaluate.py` is already in: Hit@1/5/10, MRR, mAP, chance level) |
-| Sun 8 – Mon 9 | Listen to 20 fake queries next to real AVP improvisations | Beatbox generator v0. **v0 frozen Mon night.** | Switch training to beatbox–loop pairs | Run the onset baseline on the cross-kit task |
-| Tue 10 – Thu 12 | Choose the beats for the recording session and settle the spec §8 basics. Listen to the top 5 results for a few queries. | Dataset numbers and an audio example for the slides | Train. **Round 1 numbers Thu.** | Score the encoder and the onset baseline; results table. **Round 1 numbers Thu.** |
+| Fri 6 – Mon 9 | Every v0 call made on Mon 9 (spec v0.5) | Loop rendering and clean beatbox previews | Model and training pipeline on practice data (PR #1) | `evaluate.py` (Hit@1/5/10, MRR, mAP, chance level) |
+| Tue 10 | Listen to about 20 sloppy fake queries next to real AVP improvisations, and a few loops per kit | Full library render, sloppiness, AVP participant split, manifests; run C's loader on a small manifest first | Merge PR #1 | `relevance.json` and the onset baseline |
+| Wed 11 | **Data handed to C** | **Data handed to C:** manifests plus one seeded command that regenerates the audio | Train on beatbox–loop pairs | Run the onset baseline on the v0 test set |
+| Thu 12 | Choose the beats for the recording session and settle the spec §8 basics. Listen to the top 5 results for a few queries. | Dataset numbers and an audio example for the slides | Train. **Round 1 numbers Thu.** | Score the encoder and the onset baseline; results table. **Round 1 numbers Thu.** |
 | Fri 13 – Mon 16 | Run a short recording session: about 10 beats each, with the click (README §13). Take a first look at which patterns fail. | Add the real queries to `query_manifest.csv` | One round of fixes, from the round 1 results | Score the real queries with every system. **Final numbers Mon.** |
 | Tue 17 – Wed 18 | Everyone: slides, then a rehearsal by Wed | | | |
 
@@ -71,9 +73,18 @@ Sizes, measured on 2026-11-06 with the music lead's prototype cutter (`tools/lis
 
 ## Calls for the music lead
 
-- **By Sat 7:** use the draft kit note maps for v0, or finish the picks on the articulation page first.
-- **By Sat 7:** name the held-out test kit or kits. Every kit that renders is acoustic, and the slides should say so.
-- **Mon 9:** do the fake beatboxes sound close enough to real AVP for v0?
+Made on Mon Nov 9 (spec v0.5; see the change log in `docs/music_spec.md`):
+
+- the drafted kit note maps are kept for v0
+- Salamander and MuldjordKit are held out for test, the other five kits train, and validation uses the training kits. Every kit in use is acoustic, and the slides should say so.
+- recorded tempo only
+- every clip starts 0.25 s before its downbeat and is cut at the end of bar 2 with a 20 ms fade
+- AVP sound endings and per-beat hat thinning approved as B built them
+- tempo drift off for v0
+
+Still to come:
+
+- **Tue 10:** do the sloppy fake beatboxes sound close enough to real AVP for v0?
 - **By Thu 12:** choose the beats for the recording session from the GMD test split, and settle the spec §8 basics (mic, click, takes) for it.
 - **Fri 13 – Mon 16:** decide which real takes are usable.
 
