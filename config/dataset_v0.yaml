@@ -1,0 +1,5 @@
+# Member B's reproducible build settings; musical rules stay in music_spec.yaml.
+seed: 0
+participant_counts: {train: 20, validation: 3, test: 5}
+review_patterns: {train: 7, validation: 3, test: 3}
+normalization: {target_rms_dbfs: -20.0, peak_ceiling_dbfs: -1.0}

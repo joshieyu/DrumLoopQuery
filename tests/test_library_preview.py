@@ -61,7 +61,7 @@ def test_ownership_excludes_label_context_but_keeps_early_and_dropped_hits(tmp_p
     _, row = catalog_fixture(tmp_path)
     events = render_preview.audio_events(row, load_spec())
     assert [pitch for _, pitch, _ in events] == [36, 38, 49]
-    assert events[0][0] == pytest.approx(render_preview.PRE_ROLL_S - 0.005)
+    assert events[0][0] == pytest.approx(load_spec().loops.audio.lead_in_s - 0.005)
     row["pattern_id"] = "wrong"
     with pytest.raises(ValueError, match="disagrees"):
         render_preview.audio_events(row, load_spec())
@@ -79,6 +79,7 @@ def test_preview_renders_real_audio_and_retains_review_notes(tmp_path, monkeypat
     kit = replace(
         spec.rendering.kits[0],
         program="kit.sfz",
+        split="test",
         samples=None,
         note_map={p: KitNote(36, {}) for p in spec.note_to_group},
     )
@@ -94,7 +95,7 @@ def test_preview_renders_real_audio_and_retains_review_notes(tmp_path, monkeypat
     audio, rate = sf.read(row.audio_path, always_2d=True)
     assert rate == sr and audio.shape[1] == 2
     assert row.pattern_duration_s == 4
-    assert len(audio) >= round((4 + render_preview.PRE_ROLL_S) * sr)
+    assert len(audio) >= round((4 + load_spec().loops.audio.lead_in_s) * sr)
     assert np.isfinite(audio).all() and np.any(audio)
     assert float(np.abs(audio).max()) <= 10 ** (render_preview.PEAK_CEILING_DB / 20)
     assert row.split == "test" and row.status == "audition_only"

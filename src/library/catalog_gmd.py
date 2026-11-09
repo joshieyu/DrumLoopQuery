@@ -15,6 +15,7 @@ import pretty_midi
 from src.library.clips import cut_clips
 from src.music.rhythm import Note
 from src.music.spec import load_spec
+from src.splits import resolve_patterns
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 COLUMNS = [
@@ -108,6 +109,9 @@ def catalog_gmd(gmd_dir: Path, out_dir: Path) -> dict:
     catalog = pd.DataFrame(rows, columns=COLUMNS)
     shared = catalog.groupby("pattern_id")["split"].nunique()
     collisions = catalog[catalog.pattern_id.isin(shared[shared > 1].index)]
+    catalog, removals = resolve_patterns(catalog)
+    kept_ids = set(catalog.clip_id)
+    records = [r for r in records if r["clip_id"] in kept_ids]
     summary = {
         "spec_version": spec.version,
         "gmd_root": str(gmd_dir.resolve()),
@@ -117,15 +121,19 @@ def catalog_gmd(gmd_dir: Path, out_dir: Path) -> dict:
         "clips": len(catalog),
         "unique_patterns": int(catalog.pattern_id.nunique()),
         "clips_by_split": catalog.split.value_counts().to_dict(),
-        "patterns_shared_across_splits": int((shared > 1).sum()),
-        "status": "MIDI catalog only; split conflicts must be resolved before training",
+        "original_patterns_shared_across_splits": int((shared > 1).sum()),
+        "patterns_shared_across_splits": 0,
+        "removed_cross_split_clips": len(removals),
+        "status": "split-resolved MIDI catalog; audio generation is a separate step",
         "bar_numbering": "zero-based",
         "context_margin_beats": 1,
         "source_duration_policy": "complete bars from MIDI note end; reserve configured final bars",
     }
     out_dir.mkdir(parents=True, exist_ok=True)
     catalog.to_csv(out_dir / "loop_catalog.csv", index=False)
-    collisions.to_csv(out_dir / "split_conflicts.csv", index=False)
+    collisions.to_csv(out_dir / "original_split_clashes.csv", index=False)
+    removals.to_csv(out_dir / "split_removals.csv", index=False)
+    catalog.iloc[:0].to_csv(out_dir / "split_conflicts.csv", index=False)
     pd.DataFrame(failures, columns=["source_performance", "error"]).to_csv(
         out_dir / "failures.csv", index=False
     )

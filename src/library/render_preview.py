@@ -16,12 +16,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from src.audio import frame_audio
 from src.music.rhythm import Grid, Note, clip_grid, pattern_id
 from src.music.spec import MusicSpec, load_spec
 from tools.listen.grid_ab import Loop, original_hits
 from tools.render.kits import (
     PEAK_CEILING_DB,
-    PRE_ROLL_S,
     TARGET_RMS_DB,
     check_kit,
     kit_by_id,
@@ -92,7 +92,7 @@ def audio_events(record: dict, spec: MusicSpec) -> list[tuple[float, int, int]]:
         grid=grid,
     )
     return [
-        (PRE_ROLL_S + beat * 60 / loop.bpm, pitch, velocity)
+        (spec.loops.audio.lead_in_s + beat * 60 / loop.bpm, pitch, velocity)
         for pitch, velocity, beat in original_hits(loop, spec)
     ]
 
@@ -115,6 +115,10 @@ def render_previews(
     if problems:
         raise ValueError("Kit mapping checks failed:\n" + "\n".join(problems))
     selected = select_records(catalog_dir, per_split=per_split, spec=spec)
+    allowed = {"train", "validation"} if kit.split == "train" else {"test"}
+    selected = [r for r in selected if kit.split is not None and r["split"] in allowed]
+    if not selected:
+        raise ValueError("No source windows match this kit split")
     catalog_summary = json.loads((catalog_dir / "summary.json").read_text())
     out_dir = out_dir.resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -126,13 +130,20 @@ def render_previews(
         events = audio_events(record, spec)
         hits = kit_hits(kit, events)
         # Keep silence through the full pattern and permit natural one-shot tails.
-        duration = PRE_ROLL_S + (record["end_beat"] - record["start_beat"]) * 60 / bpm
+        duration = (
+            spec.loops.audio.lead_in_s + (record["end_beat"] - record["start_beat"]) * 60 / bpm
+        )
         raw = sampler.render(hits)
         frames = max(len(raw), round(duration * sampler.sample_rate))
         raw = np.pad(raw, ((0, frames - len(raw)), (0, 0)))
         if not np.isfinite(raw).all() or not np.any(raw):
             raise ValueError(f"Silent/nonfinite render: {record['clip_id']}")
-        audio = normalize(raw)
+        audio = frame_audio(
+            normalize(raw),
+            sample_rate=sampler.sample_rate,
+            duration_s=duration,
+            settings=spec.loops.audio,
+        )
         digest = hashlib.sha256(record["clip_id"].encode()).hexdigest()[:16]
         relative = Path("audio") / f"{kit_id}_{digest}.wav"
         path = out_dir / relative
@@ -156,8 +167,8 @@ def render_previews(
             "sample_rate": sampler.sample_rate,
             "channels": audio.shape[1],
             "duration_s": len(audio) / sampler.sample_rate,
-            "pattern_duration_s": duration - PRE_ROLL_S,
-            "pre_roll_s": PRE_ROLL_S,
+            "pattern_duration_s": duration - spec.loops.audio.lead_in_s,
+            "pre_roll_s": spec.loops.audio.lead_in_s,
             "rendered_hits": len(hits),
             "peak_dbfs": 20 * np.log10(float(np.abs(audio).max())),
             "rms_dbfs": 20 * np.log10(float(np.sqrt(np.mean(audio.astype(float) ** 2)))),
@@ -206,9 +217,9 @@ def render_previews(
             "target_rms_dbfs": TARGET_RMS_DB,
             "peak_ceiling_dbfs": PEAK_CEILING_DB,
         },
-        "pre_roll_s": PRE_ROLL_S,
+        "pre_roll_s": spec.loops.audio.lead_in_s,
         "status": "audition_only; draft mapping and kit split/listening approval pending",
-        "boundary_policy": "original_hits listening helper; natural timing, pre-roll, and tails",
+        "boundary_policy": "original_hits; framing from spec.loops.audio",
         "conflict_policy": "exclude known cross-split pattern conflicts from preview only",
     }
     (out_dir / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
@@ -222,7 +233,7 @@ def render_previews(
         f"<p>Kit: {html.escape(kit_id)}. These are drum performances rendered from our "
         "labeled MIDI catalog, with a short lead-in and natural tails.</p>"
         "<p>Draft mapping and listening levels; these files are not the final training library. "
-        "The source split is preserved, but this kit has not been assigned to a split.</p>"
+        "Kit/pattern split restrictions and the configured clip cut are applied.</p>"
         '<p><a href="library_manifest.csv">Manifest</a> · '
         '<a href="listening_notes.csv">Listening notes</a> · '
         '<a href="summary.json">Summary</a></p>' + "".join(sections) + "</html>"

@@ -17,6 +17,7 @@ import numpy as np
 import pandas as pd
 import soundfile as sf
 
+from src.audio import frame_audio
 from src.music.rhythm import Note, _merge_flams, _nearest_step, clip_grid, pattern_id
 from src.music.spec import MusicSpec, load_spec
 from tools.render.kits import normalize, write_wav
@@ -126,6 +127,7 @@ def mix_query(
     pre_roll_s: float,
     duration_s: float,
     seed: int,
+    normalize_output: bool = True,
 ) -> tuple[np.ndarray, int, list[dict]]:
     """Place source samples at event times without extra timing/noise augmentation.
 
@@ -167,7 +169,10 @@ def mix_query(
     audio = np.zeros(frames, dtype=np.float32)
     for start, signal in placements:
         audio[start : start + len(signal)] += signal
-    return normalize(audio), rate, trace
+    audio = frame_audio(
+        audio, sample_rate=rate, duration_s=duration_s, settings=load_spec().loops.audio
+    )
+    return (normalize(audio) if normalize_output else audio), rate, trace
 
 
 def build_pairs(
