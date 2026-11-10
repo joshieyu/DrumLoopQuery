@@ -97,7 +97,7 @@ These rules decide which loops count as a match. D builds the answer key from th
 | Salamander (`salamander`) | acoustic | Alexander Holm; CC BY-SA 3.0 (kinwie's SFZ mapping) | **test** | No rimshot samples |
 | Gogodze Phu Vol II (`gogodze_phu_vol_ii`) | lo-fi | Karoryfer; CC0 1.0 | not used | The sampler can't play it yet |
 
-DECISION (2026-11-09): the drafted note maps are kept for v0 and refined by ear after the presentation. Validation uses the training kits. Every kit in use is acoustic, so v0's kit-disjoint test is acoustic-to-acoustic only; electronic kits are later work.
+DECISION (2026-11-09): the drafted note maps are kept for v0 and refined by ear after the presentation. A listen through all 7 kits on 2026-11-10 found no wrong articulations. Validation uses the training kits. Every kit in use is acoustic, so v0's kit-disjoint test is acoustic-to-acoustic only; electronic kits are later work.
 
 - **Aim:** a varied set, so the model can't identify a match just by kit sound. Hold out a few kits of each type for testing only.
 - **Kit sources:** DECISION: Freely licensed multisampled kits, rendered by a small Python sampler, are the backbone. Each kit's license is checked before use, and their audio may be released. A drum VST adds extra kits (good candidates for held-out test kits), rendered on A's Mac; its audio stays internal. E-GMD audio is optional later. A auditions the kits and assigns train/test here.
@@ -126,6 +126,8 @@ Real amateurs don't voice every hit. B's generator applies these rules before pl
 **Mouth sounds:** use AVP's "personal" recordings first, where people chose their own sounds. DECISION: Use Personal and Fixed, both the single-sound takes and the improvisations (all 9,776 usable sounds). Each fake recording uses one participant's sounds from one mode.
 
 **Where a mouth sound ends:** AVP only marks where each sound starts. DECISION: A sound ends where its level falls 30 dB below its peak, at the next annotated sound, or after 500 ms, whichever comes first, then fades out over 10 ms. (Measured: the median sound decays 30 dB in 160–275 ms, and 29% of improvisation sounds are still ringing when the next one starts.) Approved by ear on 2026-11-09 as B built it: level measured on a 10 ms RMS envelope, with the fade inside the kept tail.
+
+**Sounds never overlap:** DECISION (2026-11-10): one mouth makes one sound at a time. In a fake query, each sound stops where the next sound actually played starts (after timing sloppiness; dropped hits don't count), fading out over the same 10 ms so the fade ends there. Letting tails ring under the next sound sounded very unnatural. (In B's v0.5 batch, 75% of neighbouring sounds overlapped, by a median of 106 ms.)
 
 ---
 
@@ -197,3 +199,4 @@ After the first version works, compare these rules against how the drummers in T
 | 2026-10-28 | Decided: exact matching; flam timing from the loudest hit; hits near a bar line join their nearest step's bar; a new loop every 2 bars; renders within ±20% of the recorded tempo; kit sources; §5 mouth-sound choice and cut-off, snares below velocity 10 not voiced (none reach the beatbox while the label floor is 15), other hats use the closed-hat sound; §5–7 defaults approved as provisional (spec v0.3) | B's questions; unblocks `clip_grid()`, the loop cutter, the beatbox generator, and D's answer key | B |
 | 2026-10-28 | Decided: flam runs merge as one hit; exact midpoints go to the simpler position (spec v0.4) | Tie-breaks needed to build `clip_grid()` | Team, week 3 handoff |
 | 2026-11-09 | Decided for v0 (spec v0.5): draft kit maps kept; test kits Salamander and MuldjordKit, the rest train, validation on training kits; recorded tempo only; clips start 0.25 s early and are cut at the end of the last bar with a 20 ms fade; AVP sound endings and per-beat hat thinning approved; tempo drift off; other §6 ranges stay provisional until A's listen on Nov 10 | Data handoff to C on Nov 11 for the class presentation | B, C, D |
+| 2026-11-10 | Decided (spec v0.6): mouth sounds never overlap; each is cut off at the next sound played (`beatbox.choke_at_next_sound`). Kit listen: no wrong articulations, so the note maps stand for v0 | A's listen to B's v0.5 batch; needed before the full generation | |

@@ -112,6 +112,12 @@ def test_2026_11_09_decisions():
     assert spec.is_decided("rendering.kits")
 
 
+def test_2026_11_10_decisions():
+    spec = load_spec()
+    assert spec.beatbox.choke_at_next_sound is True  # mouth sounds never overlap
+    assert spec.is_decided("beatbox.choke_at_next_sound")
+
+
 def test_open_questions_stay_open():
     spec = load_spec()
     assert spec.sloppiness.swing_drift_per_bar is None
@@ -236,6 +242,8 @@ def test_undecided_lists_defaults_only():
         (lambda r: r["beatbox"]["sound_end"].update(fade_ms=-1), "outside"),
         (lambda r: r["beatbox"]["sound_end"].update(fade_ms=600), "longer than max_ms"),
         (lambda r: r["beatbox"]["sound_end"].pop("max_ms"), "missing key"),
+        (lambda r: r["beatbox"].update(choke_at_next_sound="yes"), "true or false"),
+        (lambda r: r["beatbox"].pop("choke_at_next_sound"), "missing key"),
         (lambda r: r["rendering"].update(kits={}), "list of kit entries"),
         (lambda r: r["rendering"]["kits"][0]["note_map"].pop(38), "must map every"),
         (lambda r: kit_note(r, 99, 99), "not in drum_map"),

@@ -82,9 +82,14 @@ Made on Mon Nov 9 (spec v0.5; see the change log in `docs/music_spec.md`):
 - AVP sound endings and per-beat hat thinning approved as B built them
 - tempo drift off for v0
 
+Made on Tue Nov 10 (spec v0.6):
+
+- mouth sounds never overlap: each is cut off at the next sound played
+- the kit listen found no wrong articulations
+
 Still to come:
 
-- **Tue 10:** do the sloppy fake beatboxes sound close enough to real AVP for v0?
+- **Tue 10:** do the sloppy fake beatboxes (timing, dropped hits, noise) sound close enough to real AVP for v0?
 - **By Thu 12:** choose the beats for the recording session from the GMD test split, and settle the spec §8 basics (mic, click, takes) for it.
 - **Fri 13 – Mon 16:** decide which real takes are usable.
 

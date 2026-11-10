@@ -136,6 +136,7 @@ class Beatbox:
     avp_modes: tuple[str, ...]
     avp_recordings: tuple[str, ...]
     sound_end: SoundEnd
+    choke_at_next_sound: bool  # each sound stops where the next one played starts
     simultaneous_priority: tuple[str, ...]
     skip_velocity_below: dict[str, int]  # one entry per voice; 0 voices every labelled hit
     thin_16th_hats_to_8ths_prob: float
@@ -505,6 +506,7 @@ def parse_spec(raw: Any, path: Path = DEFAULT_PATH) -> MusicSpec:
         avp_modes=modes,
         avp_recordings=recordings,
         sound_end=sound_end,
+        choke_at_next_sound=_bool(b["choke_at_next_sound"], "beatbox.choke_at_next_sound"),
         simultaneous_priority=priority,
         skip_velocity_below=_per_voice(
             b["skip_velocity_below"],

@@ -7,7 +7,7 @@
 # When you change anything here, update docs/music_spec.md and its change log too,
 # and bump `version`.
 
-version: "0.5"
+version: "0.6"
 
 # Dotted keys the music lead has signed off on. Everything else is a default,
 # and `null` means the spec has no answer yet.
@@ -39,12 +39,13 @@ decided:
   - rendering.max_tempo_change_pct              # 2026-11-09: recorded tempo only for v0
   - rendering.loudness_normalize
   - rendering.keep_performer_velocities
-  - rendering.kits                              # 2026-11-09: draft maps kept for v0; splits set
+  - rendering.kits                              # 2026-11-09: draft maps kept for v0; splits set; 2026-11-10: no wrong articulations heard
   # 2026-10-28: spec §5-7, provisional until the §9 listening checks.
   - beatbox.avp_labels
   - beatbox.avp_modes
   - beatbox.avp_recordings
   - beatbox.sound_end
+  - beatbox.choke_at_next_sound                # 2026-11-10
   - beatbox.simultaneous_priority
   - beatbox.skip_velocity_below
   - beatbox.thin_16th_hats_to_8ths_prob
@@ -250,6 +251,11 @@ beatbox:
   # under its peak, or at the next annotated sound if `stop_at_next_onset`, or after
   # `max_ms`, whichever comes first, then fades out over `fade_ms`.
   sound_end: {below_peak_db: 30, max_ms: 500, fade_ms: 10, stop_at_next_onset: true}
+  # One mouth makes one sound at a time (approved by ear 2026-11-10): in a fake query, each
+  # sound stops where the next sound actually played starts (after timing sloppiness;
+  # dropped hits don't count), fading out over `sound_end.fade_ms` so the fade ends there.
+  # A gap shorter than the fade fades over the whole gap. false lets tails overlap.
+  choke_at_next_sound: true
   simultaneous_priority: [kick, snare, hats]  # voice only the first of these
   skip_velocity_below: {kick: 0, snare: 10, hats: 0}  # labelled hits too soft to voice
   # Per beat (approved 2026-11-09): a beat whose four straight 16ths all have hats gets one
