@@ -1,4 +1,4 @@
-## default test suite for src.eval.evaluate
+"""Tests for src/eval/evaluate.py: hand-computed cases first, then sanity checks."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ def _save_scores(path, scores, query_ids=None, library_ids=None):
     )
 
 
-## Rank and metric calculations
+# --------------------------------------------------------------------------- ranks and metrics
 
 
 def test_ranks_of_relevant_clips():
@@ -36,14 +36,14 @@ def test_ranks_of_relevant_clips():
 
 
 def test_ties_count_against_the_system():
-    ## A constant-score system must not benefit from where the relevant clip sits.
+    # A constant-score system must not benefit from where the relevant clip sits.
     row = np.zeros(4)
     for position in range(4):
         assert rank_relevant(row, np.array([position])).tolist() == [4]
 
 
 def test_metrics_hand_example():
-    ## Relevant clips at ranks 2 and 4: RR = 1/2, AP = (1/2 + 2/4) / 2 = 1/2.
+    # Relevant clips at ranks 2 and 4: RR = 1/2, AP = (1/2 + 2/4) / 2 = 1/2.
     m = query_metrics(np.array([2, 4]))
     assert m["first_rank"] == 2
     assert m["rr"] == 0.5
@@ -52,9 +52,9 @@ def test_metrics_hand_example():
 
 
 def test_chance_rr_matches_enumeration():
-    ## One relevant clip of 3: ranks 1, 2, 3 equally likely -> (1 + 1/2 + 1/3) / 3.
+    # One relevant clip of 3: ranks 1, 2, 3 equally likely -> (1 + 1/2 + 1/3) / 3.
     assert chance_rr(3, 1) == pytest.approx(11 / 18)
-    ## Two relevant of 4: P(first = 1, 2, 3) = 1/2, 1/3, 1/6 -> 1/2 + 1/6 + 1/18.
+    # Two relevant of 4: P(first = 1, 2, 3) = 1/2, 1/3, 1/6 -> 1/2 + 1/6 + 1/18.
     assert chance_rr(4, 2) == pytest.approx(13 / 18)
     assert chance_rr(5, 5) == pytest.approx(1.0)
 
@@ -66,7 +66,7 @@ def test_chance_rr_rejects_impossible_counts():
         chance_rr(3, 0)
 
 
-## Whole file evaluations
+# --------------------------------------------------------------------------- whole files
 
 
 def test_perfect_system_scores_one(tmp_path):
@@ -134,12 +134,14 @@ def test_random_system_lands_near_chance(tmp_path):
     rng = np.random.default_rng(1)
     n_queries, n_library = 400, 50
     _save_scores(tmp_path / "s.npz", rng.random((n_queries, n_library)))
-    relevance = {f"q{i}": [f"c{i % n_library}", f"c{(i + 7) % n_library}"] for i in range(n_queries)}
+    relevance = {
+        f"q{i}": [f"c{i % n_library}", f"c{(i + 7) % n_library}"] for i in range(n_queries)
+    }
     table, _ = evaluate(tmp_path / "s.npz", relevance)
     assert table["rr"].mean() == pytest.approx(chance_rr(n_library, 2), abs=0.04)
 
 
-## Statistics
+# --------------------------------------------------------------------------- statistics
 
 
 def test_bootstrap_interval_brackets_the_mean_and_is_reproducible():

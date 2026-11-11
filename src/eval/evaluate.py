@@ -1,31 +1,44 @@
+"""The one scoring script: every system is scored here, from a file, the same way.
 
+Input (README §8 and §12):
 
-## The only scoring script: every system is scored here, from a file the same way.
-## Input (README §8 and §12):
-## - a system file, .npz, either
-##   * query_ids (Nq,), library_ids (Nl,), query_emb (Nq, d), library_emb (Nl, d), rows L2-normalized (scored by cosine similarity), or
-##   * query_ids, library_ids, scores (Nq, Nl), higher = better (for non-embedding systems such as B2 and B3);
-## - relevance.json: {"query_id": ["clip_id", ...], ...}, the answer key.
-##
-## Metric definitions (state these in the report):
-## - Rank of a library clip: 1 + the number of clips scored strictly higher, counting every tied clip as ahead of it (pessimistic ties), so a system that returns constant
-##  scores gets no credit for the library's row order.
-## - MRR: mean over queries of 1 / (rank of the first relevant clip).
-## - Hit@k: fraction of queries with at least one relevant clip in the top k. (Not the fraction of relevant clips retrieved
-## : with exact matching, a query's relevant set is the same loop on every test kit and tempo, so that fraction would mostly measure how many renders exist.)
-## - mAP: mean over queries of average precision over all relevant clips.
-## - chance_mrr: MRR a random ordering of the same library would get, so every number can be read against its floor.
-## Confidence intervals are percentile bootstrap intervals over queries. With a participant grouping (--query-manifest) the bootstrap 
-## resamples participants instead, because one person's queries are not independent of each other.
-## Run, from the repo root:
-## python -m src.eval.evaluate --system results/embeddings/clap_syn_beatbox.npz --relevance manifests/relevance.json --out results/eval/clap_syn_beatbox
+- a system file, ``.npz``, either
+    * ``query_ids (Nq,)``, ``library_ids (Nl,)``, ``query_emb (Nq, d)``,
+      ``library_emb (Nl, d)``, rows L2-normalized (scored by cosine similarity), or
+    * ``query_ids``, ``library_ids``, ``scores (Nq, Nl)``, higher = better
+      (for non-embedding systems such as B2 and B3);
+- ``relevance.json``: ``{"query_id": ["clip_id", ...], ...}``, the answer key.
+
+Metric definitions (state these in the report):
+
+- **Rank** of a library clip: 1 + the number of clips scored strictly higher, counting
+  every tied clip as ahead of it (*pessimistic* ties), so a system that returns constant
+  scores gets no credit for the library's row order.
+- **MRR**: mean over queries of 1 / (rank of the first relevant clip).
+- **Hit@k**: fraction of queries with at least one relevant clip in the top k.
+  (Not the fraction of relevant clips retrieved: with exact matching, a query's relevant
+  set is the same loop on every test kit and tempo, so that fraction would mostly
+  measure how many renders exist.)
+- **mAP**: mean over queries of average precision over all relevant clips.
+- **chance_mrr**: MRR a random ordering of the same library would get, so every number
+  can be read against its floor.
+
+Confidence intervals are percentile bootstrap intervals over queries. With a participant
+grouping (``--query-manifest``) the bootstrap resamples participants instead, because one
+person's queries are not independent of each other.
+
+Run, from the repo root:
+
+    python -m src.eval.evaluate --system results/embeddings/clap_syn_beatbox.npz \\
+        --relevance manifests/relevance.json --out results/eval/clap_syn_beatbox
+"""
 
 from __future__ import annotations
 
 import argparse
 import json
 from collections.abc import Mapping, Sequence
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
 
 import numpy as np
@@ -38,10 +51,10 @@ BOOT_CHUNK = 500  ## bootstrap resamples drawn at a time, to bound memory
 
 
 class EvalError(ValueError):
-    """An input file is malformed or doesn't match the answer key."""
+    """An input file is malformed or doesn't match the answer key.""" ## DON"T REMOVE THIS!!!!!!!! 
 
 
-## Loading and checking the system file and answer key
+## 
 
 
 def load_system(path: str | Path) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -53,8 +66,6 @@ def load_system(path: str | Path) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
                 raise EvalError(f"{path}: missing '{required}'")
         query_ids = f["query_ids"].astype(str)
         library_ids = f["library_ids"].astype(str)
-
-        ## Either the scores are given, or the embeddings are given and we compute the scores.
         if "scores" in keys:
             scores = np.asarray(f["scores"], dtype=np.float64)
         elif {"query_emb", "library_emb"} <= keys:
@@ -67,8 +78,6 @@ def load_system(path: str | Path) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
             scores = query_emb @ library_emb.T
         else:
             raise EvalError(f"{path}: need 'scores', or 'query_emb' and 'library_emb'")
-
-    ## Check the scores and ids for shape, duplicates, and NaN/inf.    
     if scores.shape != (len(query_ids), len(library_ids)):
         raise EvalError(
             f"{path}: scores have shape {scores.shape}, expected "
@@ -82,7 +91,6 @@ def load_system(path: str | Path) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     return query_ids, library_ids, scores
 
 
-## Check that embeddings are 2D, have the right number of rows, are finite, and are L2-normalized.
 def _check_embeddings(emb: np.ndarray, n_rows: int, name: str, path: str | Path) -> None:
     if emb.ndim != 2 or emb.shape[0] != n_rows:
         raise EvalError(f"{path}: {name} has shape {emb.shape}, expected ({n_rows}, d)")
@@ -90,10 +98,11 @@ def _check_embeddings(emb: np.ndarray, n_rows: int, name: str, path: str | Path)
         raise EvalError(f"{path}: {name} contains NaN or infinity")
     worst = np.abs(np.linalg.norm(emb, axis=1) - 1.0).max()
     if worst > NORM_TOLERANCE:
-        raise EvalError(f"{path}: {name} is not L2-normalized (a row's length is off by {worst:.3g})")
+        raise EvalError(
+            f"{path}: {name} is not L2-normalized (a row's length is off by {worst:.3g})"
+        )
 
 
-## Load the answer key and map queries to the indices of their relevant clips in the library.
 def load_relevance(path: str | Path) -> dict[str, list[str]]:
     """Read the answer key: query_id -> list of relevant clip_ids."""
     with Path(path).open() as f:
@@ -101,7 +110,6 @@ def load_relevance(path: str | Path) -> dict[str, list[str]]:
     if not isinstance(raw, dict):
         raise EvalError(f"{path}: expected a JSON object of query_id -> [clip_id, ...]")
     return {str(q): [str(c) for c in clips] for q, clips in raw.items()}
-
 
 
 def relevant_indices(
@@ -128,7 +136,7 @@ def relevant_indices(
     return out
 
 
-## metrics and ranks
+## metrics
 
 
 def rank_relevant(scores_row: np.ndarray, relevant_idx: np.ndarray) -> np.ndarray:
@@ -146,7 +154,7 @@ def query_metrics(ranks: np.ndarray, ks: Sequence[int] = DEFAULT_KS) -> dict[str
     """Metrics for one query from its relevant clips' sorted ranks."""
     first = int(ranks[0])
     out: dict[str, float] = {
-        "n_relevant": int(len(ranks)),
+        "n_relevant": len(ranks),
         "first_rank": first,
         "rr": 1.0 / first,
         "ap": float(np.mean(np.arange(1, len(ranks) + 1) / ranks)),
@@ -156,7 +164,7 @@ def query_metrics(ranks: np.ndarray, ks: Sequence[int] = DEFAULT_KS) -> dict[str
     return out
 
 
-@lru_cache(maxsize=None)
+@cache
 def chance_rr(n_items: int, n_relevant: int) -> float:
     """Expected reciprocal rank when n_relevant of n_items are placed in random order."""
     if not 1 <= n_relevant <= n_items:
@@ -193,12 +201,12 @@ def evaluate(
         "n_queries_scored": len(table),
         "n_queries_dropped": int(len(query_ids) - len(table)),
         "n_answer_key_queries_not_in_system": len(set(relevance) - set(query_ids)),
-        "n_library": int(len(library_ids)),
+        "n_library": len(library_ids),
     }
     return table, counts
 
 
-## bootstrap confidence intervals
+## statistics
 
 
 def bootstrap_ci(
@@ -253,7 +261,7 @@ def summarize(
     return summary
 
 
-## Command-line interface expected to be run from the repo root, with --system and --relevance paths relative to it.
+## command line
 
 
 def _groups_from_manifest(query_ids: pd.Series, manifest_path: Path) -> list[str]:
@@ -267,11 +275,11 @@ def _groups_from_manifest(query_ids: pd.Series, manifest_path: Path) -> list[str
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("--system", type=Path, required=True, help="system .npz file")
-    parser.add_argument(
-        "--relevance", type=Path, default=REPO_ROOT / "manifests/relevance.json"
+    parser = argparse.ArgumentParser(
+        description="Score one retrieval system against the answer key (relevance.json)."
     )
+    parser.add_argument("--system", type=Path, required=True, help="system .npz file")
+    parser.add_argument("--relevance", type=Path, default=REPO_ROOT / "manifests/relevance.json")
     parser.add_argument("--out", type=Path, required=True, help="folder for the results")
     parser.add_argument(
         "--query-manifest",
