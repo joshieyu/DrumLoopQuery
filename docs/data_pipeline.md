@@ -1,11 +1,16 @@
 # Data pipeline: MIDI clips and AVP sound index
 
-**Current checkpoint:** see [v0.7 vocal rules and review guide](v07_checkpoint.md).
+**Full synthetic handoff:** see [v0.7 dataset guide](v07_dataset_handoff.md).
+The full build contains 40,536 drum clips and 17,286 synthetic queries across
+the seven assigned kits. C's loader/features passed on all 57,822 files.
+Joshua's final listening approval remains pending.
+
+**Small listening checkpoint:** see [v0.7 vocal rules and review guide](v07_checkpoint.md).
 The speed limit and no-overlap rule supersede the historical behavior below.
 
 **Previous checkpoint (2026-11-09):** see [v0.5 handoff and regeneration guide](v05_handoff.md).
 It supersedes older pending decisions, ringing tails, and provisional split
-behavior described in the historical checkpoints below. The current build has
+behavior described in the historical checkpoints below. That review build has
 20 sloppy review queries and has passed C's loader/feature compatibility check.
 
 Owner: Member B (Junior). This documents the first pipeline steps added after the

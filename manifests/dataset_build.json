@@ -1,0 +1,115 @@
+{
+  "summary": {
+    "spec_version": "0.7",
+    "seed": 0,
+    "source_loops": 8643,
+    "unique_patterns": 8626,
+    "library_clips": 40536,
+    "queries": 17286,
+    "library_by_split": {
+      "train": 34520,
+      "validation": 4230,
+      "test": 1786
+    },
+    "queries_by_split": {
+      "train": 13808,
+      "test": 1786,
+      "validation": 1692
+    },
+    "library_by_kit": {
+      "avl_black_pearl": 7750,
+      "avl_red_zeppelin": 7750,
+      "avl_blonde_bop": 7750,
+      "avl_blonde_bop_hr": 7750,
+      "drskit": 7750,
+      "muldjordkit": 893,
+      "salamander": 893
+    },
+    "participants_by_split": {
+      "test": 5,
+      "train": 20,
+      "validation": 3
+    },
+    "speed_limited_hits": 191365,
+    "vocal_overlap_check": "passed before noise on every generated query",
+    "status": "rendered; full model-loader check and Joshua listening approval are separate",
+    "limited_smoke_build": false
+  },
+  "build_settings": {
+    "source_audio_sha256": "9c6f116e37c7ce4d37237c09c799f93bb0e7202215c61e14fd45a5902a2a8101",
+    "seed": 0,
+    "spec_version": "0.7",
+    "limit_per_split": null,
+    "query_views": "one participant per source loop, both approved AVP modes",
+    "config": {
+      "seed": 0,
+      "participant_counts": {
+        "train": 20,
+        "validation": 3,
+        "test": 5
+      },
+      "review_patterns": {
+        "train": 7,
+        "validation": 3,
+        "test": 3
+      },
+      "normalization": {
+        "target_rms_dbfs": -20.0,
+        "peak_ceiling_dbfs": -1.0
+      }
+    },
+    "inputs": {
+      "config/music_spec.yaml": "aeef443a6ae5a894811d99973a6803e16901dd100fa5bd866bdc0d000de41637",
+      "results/gmd_catalog/loops.jsonl": "aa55885e9727713d9284ff05558ab461b37c7ed444521ef49719df3aed40562b",
+      "results/avp_samples/sample_catalog.csv": "598348e472568319c473295b2ed5c07efd058921f4603ee9865975252690a683",
+      "manifests/avp_participant_splits.csv": "bedd3bfdf69ba0762de4d1b3e4fdf29bf1422ca96545af2a1a9a799850bea2dc",
+      "src/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "src/audio.py": "d89c1b100c4a3dcd8812f508d24fa64af3a8279a9cbd54edcb9b95a495c95a0c",
+      "src/baselines/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "src/build_checkpoint.py": "ac025978bca14285d1ca8cfe2aa382370e6a1784c9671ae649caf85c872a8c68",
+      "src/build_dataset.py": "d31abe7d855d21bc0edc0930a6b9bac0d6fe9ea512d61c9a5dd5c329905424a9",
+      "src/eval/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "src/eval/evaluate.py": "65702f9c56a6a0b5cec0b30b1f0c488fb47116a86c1a2642083d663d5d51ec96",
+      "src/eval/relevance.py": "2d805562c3f965007db2bcdb7692d2f0a5fb0e0ea63cea01309d0b61628e2392",
+      "src/library/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "src/library/catalog_gmd.py": "ceec8c19bfb0635412fe23641ee045f6e91262b3ac48edba606b1d9d845dbd30",
+      "src/library/clips.py": "b990dd16012224b1dda735bafca4c9dbca5f0ec5b5908dc85898db75b6a1ad92",
+      "src/library/inspect_midi.py": "20b362ed234d57a2beafd049cc3c8efd54b9248ab1922dd340354a2405db0968",
+      "src/library/render_preview.py": "5a46533e701506160d4b201c772ac767f7a295ec9fd28cc4b6e7ee1666e4a78f",
+      "src/models/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "src/music/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "src/music/rhythm.py": "b81fb5d9aa033662fe34470b1e384774149a2e4a5bc793ffdbd2672e4f15c919",
+      "src/music/spec.py": "17f76b011f1c10b4ce5a57de790d58332bc5ee670a1ca673b9e1d628d904f02c",
+      "src/queries/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "src/queries/augment.py": "385b0ea0b5c99658795ce43d930d3ca98924b3e296152589ac1600ebfacd45a8",
+      "src/queries/beatbox_preview.py": "349c8afba114757ed04824dd4439772746a6b34cfda900750015533beb4e9a03",
+      "src/queries/extract_avp.py": "b2a722adfa0d1fffc4caac5188b46d6557758a03cbe3c4d175df78418594624e",
+      "src/queries/index_avp.py": "869c08827839a5525512347f8d9f9ddcb0e1afdc652cb430f55cc1e70b45ac78",
+      "src/queries/mixing.py": "d0a9891f541fcd2fb52f14bd96361636b08fce422be176096a56ebe5a2b217ac",
+      "src/splits.py": "3505b4e9690e38cd17650cb6a794d7a3c6defe41405a70cf269c908cbea30591",
+      "tools/render/__init__.py": "c9e55ecec7c87b1a7f866584dfbc8060da586625df0e0e2eabdc84f8862a803f",
+      "tools/render/kits.py": "a826be856407716c08ae20f1f0efe59fd7f3f88782f458cb20328ebdd64f8b4a",
+      "tools/render/sampler.py": "db4340f95686069cc4ffeb081ee346742dc17755e4c652d057f5dff4eefd8358",
+      "tools/render/sfz.py": "53f9aab999e3cd9fee63f0fdae538271fa28993f6ca1b2cd8fec73a701c7fe53"
+    },
+    "kit_programs": {
+      "avl_black_pearl": "c7f5a77b2324ee9cdf23a5b5a8d669f101fd337fcbade47e0f82c8268a1083d9",
+      "avl_red_zeppelin": "31e8a9cba46774b93a039fe2efc8b17e075fd77521ca9c466694ef61ea6cc5d9",
+      "avl_blonde_bop": "47389ab6b26846992b57161491f9e8a99b4cdc81e00ac9d6a32664643279ceb9",
+      "avl_blonde_bop_hr": "06b359a48a4b838256681a6516e4cd7f642362dce27def522b147430d2034940",
+      "drskit": "14634014dcea45235de643d854d77197334ac702f06c68a9a2cd7f8f97828a48",
+      "muldjordkit": "21b1532355d09318ca7540273aed4f31fea2de45d7c758ffe50e4c6fa9b9ab77",
+      "salamander": "c53987241d7b3d29a589c2a0cd918400a101518680dbc814c721dfd9dc3de8d7"
+    }
+  },
+  "model_loader": {
+    "passed": true,
+    "model_ref": "2730c81101ab276080a60c066a497f7d5c16d629",
+    "model_revision": "2730c81101ab276080a60c066a497f7d5c16d629",
+    "loaded_clips": 57822,
+    "train_batches": 3444,
+    "matched_queries": 17286,
+    "participant_kit_and_framing_checks": "passed"
+  },
+  "regenerate": "python -m src.build_dataset --seed 0 --publish --model-ref 2730c81101ab276080a60c066a497f7d5c16d629"
+}

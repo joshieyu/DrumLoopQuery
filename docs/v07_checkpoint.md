@@ -90,7 +90,8 @@ Listen for a less frantic single-person performance and natural transitions.
 Technical non-overlap does not prove musical realism; Joshua's go/no-go listen
 is still required.
 
-Next, implement/run full-pattern generation across the five training kits and
-the two held-out kits, generate matching queries, and run full-manifest checks.
-That is a separate checkpoint: this command still builds a small review batch.
+Full-pattern generation is now provided by `src.build_dataset`; see
+[v0.7 full dataset handoff](v07_dataset_handoff.md) for the seeded command,
+seven-kit coverage, manifests, and full loader checks. The command on this
+page still builds only the small review batch.
 No commit, push, or message to another teammate is performed by regeneration.

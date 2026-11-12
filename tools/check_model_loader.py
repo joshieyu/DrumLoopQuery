@@ -25,7 +25,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def check_loader(dataset: Path, model_ref: str) -> dict:
-    """Execute C's real loader and R1 extraction on every small-batch audio file."""
+    """Execute C's real loader and R1 extraction on every manifested audio file."""
     revision = subprocess.check_output(["git", "rev-parse", model_ref], cwd=ROOT, text=True).strip()
     files = [
         "src/models/config.py",
@@ -81,7 +81,8 @@ def check_loader(dataset: Path, model_ref: str) -> dict:
             numerator, denominator = map(int, spec.loops.time_signatures[0].split("-"))
             beats = spec.loops.bars * numerator * 4 / denominator
             details = []
-            for row in clips.itertuples(index=False):
+            print(f"Checking C loader/features on {len(clips)} audio files", flush=True)
+            for number, row in enumerate(clips.itertuples(index=False), 1):
                 audio, rate = sf.read(row.audio_path, always_2d=True)
                 if not np.isfinite(audio).all() or not np.any(audio):
                     raise ValueError(f"Bad audio: {row.id}")
@@ -94,6 +95,8 @@ def check_loader(dataset: Path, model_ref: str) -> dict:
                 r1 = features.compute_features("r1", signal, cfg)
                 if r1.ndim != 2 or r1.shape[1] != 3 or not np.isfinite(r1).all():
                     raise ValueError(f"Bad R1 features: {row.id}")
+                if number % 250 == 0:
+                    print(f"Loader/features {number}/{len(clips)}", flush=True)
                 details.append(
                     {
                         "id": row.id,
