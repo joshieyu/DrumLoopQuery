@@ -118,6 +118,15 @@ def test_2026_11_10_decisions():
     assert spec.is_decided("beatbox.choke_at_next_sound")
 
 
+def test_2026_11_11_decisions():
+    spec = load_spec()
+    assert spec.beatbox.min_gap_ms == {"kick": 120, "snare": 120, "hats": 250}
+    assert spec.is_decided("beatbox.min_gap_ms")
+    sl = spec.sloppiness  # ranges approved by ear as they were
+    assert (sl.offset_ms, sl.jitter_ms, sl.snr_db) == ((-20, 20), (0, 40), (10, 40))
+    assert sl.drop_prob == {"kick": (0, 0.05), "snare": (0, 0.05), "hats": (0, 0.4)}
+
+
 def test_open_questions_stay_open():
     spec = load_spec()
     assert spec.sloppiness.swing_drift_per_bar is None
@@ -244,6 +253,9 @@ def test_undecided_lists_defaults_only():
         (lambda r: r["beatbox"]["sound_end"].pop("max_ms"), "missing key"),
         (lambda r: r["beatbox"].update(choke_at_next_sound="yes"), "true or false"),
         (lambda r: r["beatbox"].pop("choke_at_next_sound"), "missing key"),
+        (lambda r: r["beatbox"]["min_gap_ms"].pop("hats"), "missing key"),
+        (lambda r: r["beatbox"]["min_gap_ms"].update(kick=-1), "outside"),
+        (lambda r: r["beatbox"]["min_gap_ms"].update(snare="fast"), "expected a number"),
         (lambda r: r["rendering"].update(kits={}), "list of kit entries"),
         (lambda r: r["rendering"]["kits"][0]["note_map"].pop(38), "must map every"),
         (lambda r: kit_note(r, 99, 99), "not in drum_map"),

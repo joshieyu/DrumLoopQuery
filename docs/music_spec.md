@@ -122,6 +122,7 @@ Real amateurs don't voice every hit. B's generator applies these rules before pl
 | Cymbals and toms | Never voiced | Yes |
 | Open hi-hat | Voice with the AVP open-hat sound | Yes |
 | Other hats hits | — | Closed, pedal, ride, and ride bell all use the AVP closed-hat sound |
+| Speed limit | — | DECISION (2026-11-11): nobody beatboxes as fast as a drummer plays. After the rules above, sounds are kept in priority order (kick, then snare, then hats; earlier first within a voice), and a sound is voiced only with at least its voice's gap from every sound already kept: **120 ms** for kick and snare, **250 ms** for hats, on the clean grid times. Chosen by ear from five versions. Before it, fake beatboxes ran at a median 5.9 sounds/s against real AVP improvisations' 2.7, with a quarter of gaps under 100 ms; with it, 3.4 sounds/s, the shortest gaps match AVP's (5th percentile about 130 ms), and 80% of kicks and snares are voiced. The 16th-hat thinning above rarely applies, because human timing seldom puts all four 16ths exactly on the grid. |
 
 **Mouth sounds:** use AVP's "personal" recordings first, where people chose their own sounds. DECISION: Use Personal and Fixed, both the single-sound takes and the improvisations (all 9,776 usable sounds). Each fake recording uses one participant's sounds from one mode.
 
@@ -137,15 +138,17 @@ Each fake beatbox recording gets a random amount of each effect within these ran
 
 | Effect | Default range | What it models | DECISION |
 |---|---|---|---|
-| Steady rush or drag | −20 to +20 ms, same for the whole clip | Playing consistently ahead of or behind the beat | Yes (provisional) |
-| Per-hit timing wobble | 0 to 40 ms | Imprecise timing on individual hits | Yes (provisional) |
+| Steady rush or drag | −20 to +20 ms, same for the whole clip | Playing consistently ahead of or behind the beat | Yes (approved by ear 2026-11-11) |
+| Per-hit timing wobble | 0 to 40 ms | Imprecise timing on individual hits | Yes (approved by ear 2026-11-11) |
 | Tempo drift | 0 to 8% over the clip | Slowly speeding up or slowing down | Off for v0 (2026-11-09); 0–8% (provisional) after the presentation |
 | Swing drift | small random change in swing amount per bar | Inconsistent swing feel | Off until A has listened |
-| Dropped hits | kick 0–0.05, snare 0–0.05, hats 0–0.4 probability | Forgetting or skipping hits | Yes (provisional) |
-| Background noise | 10 to 40 dB SNR | Room and laptop noise | Yes (provisional) |
+| Dropped hits | kick 0–0.05, snare 0–0.05, hats 0–0.4 probability | Forgetting or skipping hits | Yes (approved by ear 2026-11-11) |
+| Background noise | 10 to 40 dB SNR | Room and laptop noise | Yes (approved by ear 2026-11-11) |
 | Mic coloration | mild random EQ | Different laptop mics | Off until A has listened |
 
 These ranges are guesses. A should listen to a handful of fake recordings next to real AVP improvisations and adjust until they sound similar.
+
+DECISION (2026-11-11): A listened to each effect stepped across its range on the same fake beatboxes, next to real AVP, and kept all four ranges in use as they are for v0.
 
 ---
 
@@ -200,3 +203,4 @@ After the first version works, compare these rules against how the drummers in T
 | 2026-10-28 | Decided: flam runs merge as one hit; exact midpoints go to the simpler position (spec v0.4) | Tie-breaks needed to build `clip_grid()` | Team, week 3 handoff |
 | 2026-11-09 | Decided for v0 (spec v0.5): draft kit maps kept; test kits Salamander and MuldjordKit, the rest train, validation on training kits; recorded tempo only; clips start 0.25 s early and are cut at the end of the last bar with a 20 ms fade; AVP sound endings and per-beat hat thinning approved; tempo drift off; other §6 ranges stay provisional until A's listen on Nov 10 | Data handoff to C on Nov 11 for the class presentation | B, C, D |
 | 2026-11-10 | Decided (spec v0.6): mouth sounds never overlap; each is cut off at the next sound played (`beatbox.choke_at_next_sound`). Kit listen: no wrong articulations, so the note maps stand for v0 | A's listen to B's v0.5 batch; needed before the full generation | |
+| 2026-11-11 | Decided (spec v0.7): §6 sloppiness ranges kept as they are for v0; §5 speed limit (`beatbox.min_gap_ms`: kick and snare 120 ms, hats 250 ms) | Fake beatboxes were about twice as fast as real AVP and sounded impossible to beatbox | |

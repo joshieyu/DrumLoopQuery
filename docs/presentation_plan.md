@@ -22,7 +22,7 @@ v0 is a small, early version of the data, handed to C on Wed Nov 11. It is not M
 |---|---|
 | Loops | All GMD loops that pass the spec. Patterns use GMD's own split. |
 | Library audio | Every loop at its recorded tempo, through the 7 kits that render. Other tempos come later. Test kits: Salamander and MuldjordKit; the other five train, and validation uses the training kits. Every clip starts 0.25 s before its downbeat and is cut at the end of bar 2. |
-| Queries | Fake beatbox only, from AVP with the spec §5 rules. The only sloppiness is steady rush or drag, per-hit wobble, dropped hits and background noise; all values come from `config/music_spec.yaml`. Queries are cut like the loops. AVP participants split 20 / 3 / 5. |
+| Queries | Fake beatbox only, from AVP with the spec §5 rules. Mouth sounds never overlap, and a speed limit keeps them about as fast as real AVP beatboxers. The only sloppiness is steady rush or drag, per-hit wobble, dropped hits and background noise; all values come from `config/music_spec.yaml`. Queries are cut like the loops. AVP participants split 20 / 3 / 5. |
 | Answer key | Exact `pattern_id` match (`same_rhythm.match: exact`) |
 | Split clashes | A pattern found in more than one GMD split keeps only its most held-out copy (test, then validation). The 3 clashes today all lose their training copies, so the official test split stays whole. |
 
@@ -87,9 +87,13 @@ Made on Tue Nov 10 (spec v0.6):
 - mouth sounds never overlap: each is cut off at the next sound played
 - the kit listen found no wrong articulations
 
+Made on Wed Nov 11 (spec v0.7):
+
+- the sloppiness ranges stay as they are
+- a speed limit on the fake beatboxes: kick and snare at least 120 ms apart, hats 250 ms. Before it they ran about twice as fast as real AVP beatboxers.
+
 Still to come:
 
-- **Tue 10:** do the sloppy fake beatboxes (timing, dropped hits, noise) sound close enough to real AVP for v0?
 - **By Thu 12:** choose the beats for the recording session from the GMD test split, and settle the spec §8 basics (mic, click, takes) for it.
 - **Fri 13 – Mon 16:** decide which real takes are usable.
 

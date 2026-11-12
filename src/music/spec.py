@@ -139,6 +139,7 @@ class Beatbox:
     choke_at_next_sound: bool  # each sound stops where the next one played starts
     simultaneous_priority: tuple[str, ...]
     skip_velocity_below: dict[str, int]  # one entry per voice; 0 voices every labelled hit
+    min_gap_ms: dict[str, float]  # per voice: room a sound needs from every sound kept before it
     thin_16th_hats_to_8ths_prob: float
     voice_cymbals_and_toms: bool
     open_hat_sound: str  # for drum_map.hihat_open notes
@@ -508,6 +509,9 @@ def parse_spec(raw: Any, path: Path = DEFAULT_PATH) -> MusicSpec:
         sound_end=sound_end,
         choke_at_next_sound=_bool(b["choke_at_next_sound"], "beatbox.choke_at_next_sound"),
         simultaneous_priority=priority,
+        min_gap_ms=_per_voice(
+            b["min_gap_ms"], voices, "beatbox.min_gap_ms", lambda x, w: _num(x, w, 0, 2000)
+        ),
         skip_velocity_below=_per_voice(
             b["skip_velocity_below"],
             voices,

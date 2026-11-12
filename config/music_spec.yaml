@@ -7,7 +7,7 @@
 # When you change anything here, update docs/music_spec.md and its change log too,
 # and bump `version`.
 
-version: "0.6"
+version: "0.7"
 
 # Dotted keys the music lead has signed off on. Everything else is a default,
 # and `null` means the spec has no answer yet.
@@ -41,11 +41,13 @@ decided:
   - rendering.keep_performer_velocities
   - rendering.kits                              # 2026-11-09: draft maps kept for v0; splits set; 2026-11-10: no wrong articulations heard
   # 2026-10-28: spec §5-7, provisional until the §9 listening checks.
+  # 2026-11-11: the sloppiness ranges below approved by ear for v0, as they are.
   - beatbox.avp_labels
   - beatbox.avp_modes
   - beatbox.avp_recordings
   - beatbox.sound_end
   - beatbox.choke_at_next_sound                # 2026-11-10
+  - beatbox.min_gap_ms                         # 2026-11-11
   - beatbox.simultaneous_priority
   - beatbox.skip_velocity_below
   - beatbox.thin_16th_hats_to_8ths_prob
@@ -258,6 +260,12 @@ beatbox:
   choke_at_next_sound: true
   simultaneous_priority: [kick, snare, hats]  # voice only the first of these
   skip_velocity_below: {kick: 0, snare: 10, hats: 0}  # labelled hits too soft to voice
+  # Speed limit (approved by ear 2026-11-11): nobody beatboxes as fast as a drummer plays.
+  # After every other rule here, sounds are kept in priority order (simultaneous_priority,
+  # earlier first within a voice): a sound is voiced only if it is at least its voice's
+  # gap from every sound already kept. Times are the clean grid times, before sloppiness.
+  # Real AVP improvisations: median 2.7 sounds/s, 5% of gaps under 131 ms.
+  min_gap_ms: {kick: 120, snare: 120, hats: 250}
   # Per beat (approved 2026-11-09): a beat whose four straight 16ths all have hats gets one
   # coin flip; on thinning, its two off-8th hats go. Other hat figures stay as played.
   thin_16th_hats_to_8ths_prob: 0.5
