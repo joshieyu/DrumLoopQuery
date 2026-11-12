@@ -1,0 +1,151 @@
+% ============================================================
+% A: Problem, motivation, research gap, "same rhythm"   (Joshua, ~2:00)
+% ============================================================
+\section{Problem and Motivation}
+\presenter{Joshua}
+
+\tikzset{
+  abox/.style={draw=UCFBlack, rounded corners=3pt, fill=LightGray, minimum height=0.95cm,
+               align=center, font=\small, inner sep=5pt},
+  aplain/.style={abox, fill=white},
+  ahot/.style={abox, fill=UCFGold!60},
+  abad/.style={abox, fill=white, draw=SoftGray, text=SoftGray},
+  aarr/.style={-{Stealth[length=1.8mm]}, thick, UCFBlack},
+  anote/.style={font=\scriptsize, text=SoftGray, align=center},
+  aloop/.style={draw=UCFBlack, fill=white, rounded corners=2pt, minimum width=3.1cm,
+                minimum height=0.55cm, font=\footnotesize, anchor=west, inner sep=3pt},
+}
+
+% ------------------------------------------------------------
+\begin{frame}{Find a drum loop by beatboxing it}
+  \slidepoint{Sample libraries are searched with text tags. Tags say the genre, not where the kicks, snares and hats land.}
+
+  \centering
+  \begin{adjustbox}{max width=\textwidth}
+  \begin{tikzpicture}[node distance=0.8cm]
+    \node[aplain, minimum width=3.0cm] (q) {\textbf{``boom -- tss -- pf -- tss''}\\[-1pt]
+      {\scriptsize 2 bars, beatboxed into a laptop mic}};
+    \node[ahot, right=of q, minimum width=2.6cm] (sys) {Rhythm\\search};
+    \node[aloop, right=1.0cm of sys, yshift=0.75cm, fill=UCFGold!25] (r1) {1.\ funk loop, kit A \hfill same rhythm};
+    \node[aloop, below=0.12cm of r1.south west, anchor=north west] (r2) {2.\ funk loop, kit B \hfill same rhythm};
+    \node[aloop, below=0.12cm of r2.south west, anchor=north west, draw=SoftGray, text=SoftGray] (r3) {3.\ soul loop \hfill close};
+    \draw[aarr] (q) -- (sys);
+    \draw[aarr] (sys.east) -- ++(0.45,0) |- (r1.west);
+    \draw[aarr] (sys.east) -- ++(0.45,0) |- (r2.west);
+    \draw[aarr] (sys.east) -- ++(0.45,0) |- (r3.west);
+    \node[anote, below=0.25cm of q] {\textbf{Input:} an imperfect beatbox};
+    \node[anote, below=0.25cm of r3] {\textbf{Output:} drum loops ranked\\by how well the rhythm matches};
+  \end{tikzpicture}
+  \end{adjustbox}
+
+  \vspace{0.45cm}
+
+  \begin{takeaway}
+    People already share grooves by performing them. We want a search box that takes a beat instead of words:
+    beatbox 2 bars, get back loops from the library that play the same rhythm, on any drum kit.
+  \end{takeaway}
+
+  \note{
+    Producers dig through loop libraries using tags like ``funk'' or ``90 BPM''. Those tags describe the
+    genre, not where the hits land. Musicians usually communicate a groove by performing it, by beatboxing
+    or tapping. So our input is 2 bars of beatbox from a laptop mic, and the output is a ranked list of
+    loops that play the same rhythm, whatever kit they're on.
+  }
+\end{frame}
+
+% ------------------------------------------------------------
+\begin{frame}{Same rhythm, completely different sound}
+  \slidepoint{A loop and a beatbox of the same groove line up in time, but not in sound.}
+
+  \slidefig[4.3cm]{timbre_gap.pdf}
+
+  \vspace{0.15cm}
+  \begin{columns}[T,onlytextwidth]
+    \column{0.32\textwidth}
+      \textbf{Timbre gap.} A mouth ``pf'' and a kick drum share timing, not spectrum.
+    \column{0.32\textwidth}
+      \textbf{Imperfect people.} Amateurs rush, drag, drop hi-hats and can't voice every hit.
+    \column{0.32\textwidth}
+      \textbf{Every voice differs.} So we test on people the model has never heard.
+  \end{columns}
+
+  \note{
+    Top: one of our library loops. Bottom: a fake beatbox of the same 2 bars. The white lines are beats.
+    The hits land in the same places, but the spectra look nothing alike: that's the timbre gap.
+    [Optional demo: play the two clips, from results/listening/beatbox\_speed/audio/07\_drums.wav and
+    07\_middle.wav.] On top of that, real people are sloppy, and everyone's kick sounds different.
+  }
+\end{frame}
+
+% ------------------------------------------------------------
+\begin{frame}{Research gap}
+  \slidepoint{Query-by-beatboxing has been done by transcribing the beatbox first. Nobody has tested learned rhythm embeddings against that.}
+
+  \centering
+  \begin{adjustbox}{max width=\textwidth}
+  \begin{tikzpicture}[node distance=0.55cm]
+    \node[anchor=east, font=\small\bfseries, align=right] (lab1) at (0,0) {Classic\\{\scriptsize\mdseries Kapur et al.;}\\{\scriptsize\mdseries Nakano et al., 2004}};
+    \node[abad, right=0.4cm of lab1] (a1) {Beatbox};
+    \node[abad, right=of a1] (a2) {Label every\\sound};
+    \node[abad, right=of a2] (a3) {Drum\\grid};
+    \node[abad, right=of a3] (a4) {Match against\\library grids};
+    \draw[aarr, SoftGray] (a1) -- (a2); \draw[aarr, SoftGray] (a2) -- (a3); \draw[aarr, SoftGray] (a3) -- (a4);
+    \node[anote, right=0.25cm of a4, text=red!70!black, align=left] {one misheard\\sound breaks\\the match};
+
+    \node[anchor=east, font=\small\bfseries, align=right] (lab2) at (0,-1.8) {Ours};
+    \node[aplain, right=0.4cm of lab2] (b1) {Beatbox};
+    \node[ahot, right=of b1, minimum width=3.6cm] (b2) {Learned\\rhythm embedding};
+    \node[aplain, right=of b2] (b3) {Nearest loops,\\any kit};
+    \draw[aarr] (b1) -- (b2); \draw[aarr] (b2) -- (b3);
+    \node[anote, below=0.1cm of b2] {trained so beatbox and loop of\\the same rhythm land together};
+  \end{tikzpicture}
+  \end{adjustbox}
+
+  \vspace{0.15cm}
+  \raggedright\footnotesize
+  \begin{itemize}
+    \item \textbf{Close but different:} TRIA (2025) generates drums from beatboxes (no search); Ramires et al.\ (2018)
+          adapt \emph{transcription} to each user; CLAP captures what audio means, not where hits land.
+    \item \textbf{Our question:} do learned rhythm embeddings beat transcribe-then-match on people and drum kits never seen in training?
+  \end{itemize}
+
+  \note{
+    The idea goes back to 2004: Kapur and colleagues, and Nakano and colleagues, transcribed each beatbox
+    sound into a drum hit, then matched symbolically. If one sound is misheard, the match breaks. Recent work
+    like TRIA uses beatboxes to generate drums rather than search, and per-user adaptation has only been
+    done for transcription. So our gap: compare a learned rhythm embedding against transcribe-then-match,
+    on held-out people and held-out kits.
+  }
+\end{frame}
+
+% ------------------------------------------------------------
+\begin{frame}{What counts as ``the same rhythm''?}
+  \slidepoint{Each loop becomes a 3-voice grid. Same grid = same rhythm.}
+
+  \slidefig[2.6cm]{rhythm_grid.pdf}
+
+  \vspace{0.1cm}
+  \begin{columns}[T,onlytextwidth]
+    \column{0.55\textwidth}
+      \small
+      \begin{itemize}
+        \item \textbf{3 voices:} kick, snare, hats (cymbals count as hats). Toms, crashes and ghost notes are left out.
+        \item \textbf{12 steps per beat} hold both straight 16ths and triplets, so a swung beat is a different rhythm from a straight one.
+      \end{itemize}
+    \column{0.40\textwidth}
+      \begin{takeaway}
+        \centering
+        {\Large\bfseries 8,626}\\
+        distinct rhythms in 8,643 two-bar loops\\[2pt]
+        {\footnotesize\color{SoftGray}Almost every loop is its own pattern, so each query has only a few right answers.}
+      \end{takeaway}
+  \end{columns}
+
+  \note{
+    This is the grid for the loop on the last slide. As the music lead, I wrote these rules: three voices,
+    and twelve steps per beat, which is fine enough to tell straight 16ths from triplet swing. Two clips
+    are the same rhythm only if the grids match exactly. Because both sides come from the same MIDI,
+    the answer key is free. And 8,626 of the 8,643 loops are their own pattern, so this is close to
+    finding one exact loop in the library.
+  }
+\end{frame}
