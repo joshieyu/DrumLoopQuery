@@ -1,0 +1,164 @@
+% ============================================================
+% D: Evaluation, results, what's left   (Dylan, ~2:15)
+% ============================================================
+% Scaffold: the setup below follows docs/presentation_plan.md and README sections 7-9.
+% Fill the red ? cells with Round 1 (Thu Nov 12) and Round 2 (Mon Nov 16) numbers,
+% and cut any slide we have no result for. All numbers come from src/eval/evaluate.py.
+\section{Experiments and Results}
+\presenter{Dylan}
+
+\tikzset{
+  dbox/.style={draw=UCFBlack, rounded corners=3pt, fill=LightGray, minimum height=0.9cm,
+               align=center, font=\footnotesize, inner sep=4pt},
+  dplain/.style={dbox, fill=white},
+  dhot/.style={dbox, fill=UCFGold!60},
+  darr/.style={-{Stealth[length=1.8mm]}, thick, UCFBlack},
+  dnote/.style={font=\scriptsize, text=SoftGray, align=center},
+  drow/.style={draw=SoftGray, fill=white, rounded corners=2pt, minimum width=3.0cm,
+               minimum height=0.42cm, font=\scriptsize, inner sep=2pt},
+}
+
+% ------------------------------------------------------------
+\begin{frame}{How we evaluate}
+  \slidepoint{Everything in the test is new to the model: new rhythms, new drum kits, new voices.}
+
+  \begin{columns}[T,onlytextwidth]
+    \column{0.52\textwidth}
+      \small
+      \begin{itemize}
+        \item \textbf{Held out:} GMD test patterns (893 loops), 2 test kits, 5 AVP test people,
+              and our own beatboxes.
+        \item \textbf{Answer key:} same pattern ID. Each query has one right loop per test kit,
+              among \todo{library size} clips.
+        \item \textbf{Metrics:} mean reciprocal rank (MRR, main), Hit@1/5/10, mAP,
+              bootstrap 95\% confidence intervals.
+        \item \textbf{Compared with:} random chance and an onset baseline (no learning).
+              \todo{CLAP if we get to it}
+      \end{itemize}
+    \column{0.44\textwidth}
+      \centering
+      \begin{tikzpicture}
+        \node[dplain] (q) at (0,0) {Beatbox\\query};
+        \node[drow] (r1) at (2.9,0.95) {1.\ loop 412};
+        \node[drow] (r2) at (2.9,0.45) {2.\ loop 87};
+        \node[drow, fill=UCFGold!60, draw=UCFBlack] (r3) at (2.9,-0.05) {3.\ loop 9 \hfill \textbf{right}};
+        \node[drow] (r4) at (2.9,-0.55) {4.\ loop 230};
+        \node[dnote] at (2.9,-0.95) {\dots};
+        \draw[darr] (q.east) -- (1.35,0.2);
+        \node[dnote, font=\small, text=UCFBlack] at (2.9,-1.55) {reciprocal rank $= 1/3$};
+        \node[dnote] at (2.9,-2.05) {MRR = average over all queries};
+      \end{tikzpicture}
+  \end{columns}
+
+  \note{
+    \todo{D: speaker notes.}
+  }
+\end{frame}
+
+% ------------------------------------------------------------
+\begin{frame}{Results so far}
+  \slidepoint{\todo{one sentence: the headline result}}
+
+  \centering
+  \begin{tabular}{lcccc}
+    \toprule
+    & \multicolumn{3}{c}{Fake beatbox (test people, test kits)} & Real beatbox (us) \\
+    \cmidrule(lr){2-4}\cmidrule(lr){5-5}
+    System & MRR (95\% CI) & Hit@1 & Hit@10 & MRR \\
+    \midrule
+    Random chance & \tbd & \tbd & \tbd & \tbd \\
+    Onset baseline & \tbd & \tbd & \tbd & \tbd \\
+    Our encoder & \tbd & \tbd & \tbd & \tbd \\
+    \bottomrule
+  \end{tabular}
+
+  \vspace{0.35cm}
+  \raggedright\small
+  \begin{itemize}
+    \item \todo{number of fake and real queries; which front-end ``our encoder'' is}
+    \item \todo{what the gap between fake and real beatboxes tells us}
+  \end{itemize}
+
+  \note{
+    \todo{D: speaker notes.} Round 1 numbers Thu Nov 12; real beatboxes Mon Nov 16.
+  }
+\end{frame}
+
+% ------------------------------------------------------------
+% Ablations. Keep whichever we have by Mon Nov 16 and cut the other.
+\begin{frame}{What changes the result}
+  \slidepoint{\todo{one sentence per finding}}
+
+  \begin{columns}[T,onlytextwidth]
+    \column{0.48\textwidth}
+      \centering\textbf{Front-end}\par\smallskip
+      \figtodo[4.4cm]{MRR for onset-envelope (R1) vs.\ log-mel (R3) input, fake and real beatboxes (C)}
+    \column{0.48\textwidth}
+      \centering\textbf{Messier queries}\par\smallskip
+      \figtodo[4.4cm]{MRR as dropped hits and noise increase, encoder vs.\ onset baseline (stretch)}
+  \end{columns}
+
+  \note{
+    \todo{D and C: speaker notes.}
+  }
+\end{frame}
+
+% ------------------------------------------------------------
+% Qualitative. Joshua (A) prepares the "which patterns fail" breakdown (a small E8)
+% and can present this slide if that flows better.
+\begin{frame}{What it gets right and wrong}
+  \slidepoint{\todo{one sentence: the kind of rhythm it confuses}}
+
+  \begin{columns}[T,onlytextwidth]
+    \column{0.55\textwidth}
+      \figtodo[4.6cm]{one real beatbox query and its top 5 loops as 3-voice grids, right answer highlighted (play it?)}
+    \column{0.41\textwidth}
+      \figtodo[4.6cm]{MRR split by pattern type: straight vs.\ swung, sparse vs.\ busy (A)}
+  \end{columns}
+
+  \note{
+    \todo{speaker notes.}
+  }
+\end{frame}
+
+% ------------------------------------------------------------
+\begin{frame}{What's left}
+  \slidepoint{The full plan answers three questions; the talk covers a first pass at the first one.}
+
+  \begin{columns}[T,onlytextwidth]
+    \column{0.32\textwidth}
+      \begin{block}{Embedding vs.\ transcription?}
+        \footnotesize
+        \begin{itemize}
+          \item The ``transcribe, then match'' baseline: the 2004 approach, rebuilt carefully
+          \item CLAP baseline
+          \item Tap queries, and real taps from TapTamDrum
+        \end{itemize}
+      \end{block}
+    \column{0.32\textwidth}
+      \begin{block}{Which input transfers to real people?}
+        \footnotesize
+        \begin{itemize}
+          \item More front-ends, including a pretrained music encoder (MERT)
+          \item Full recording sessions: about 50 beats each, with and without a click
+          \item Fine-tune on 3 of us, test on the 4th
+        \end{itemize}
+      \end{block}
+    \column{0.32\textwidth}
+      \begin{block}{Does a quick enrollment help?}
+        \footnotesize
+        \begin{itemize}
+          \item A new user records a few kicks, snares and hats first
+          \item Adapt the encoder with LoRA, $k = 0, 1, 3, 5$ examples
+        \end{itemize}
+      \end{block}
+  \end{columns}
+
+  \vspace{0.25cm}
+  {\footnotesize\color{SoftGray}\raggedright
+  Also: electronic and lo-fi kits, other tempos, and tempo drift, swing drift and mic EQ in the fake beatboxes.\par}
+
+  \note{
+    \todo{D: speaker notes.}
+  }
+\end{frame}

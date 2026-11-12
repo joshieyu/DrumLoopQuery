@@ -1,0 +1,78 @@
+\documentclass[aspectratio=169,11pt]{beamer}
+
+\input{preamble.tex}
+
+% ============================================================
+% HOW THIS DECK IS ORGANIZED
+% ============================================================
+% The talk is 8-9 minutes, then 3 minutes of questions. Everyone presents a part:
+%
+%   sections/a_problem.tex   Joshua (A)  problem, motivation, research gap, "same rhythm"  ~2:00
+%   sections/b_data.tex      Junior (B)  overall pipeline, library, fake beatbox queries    ~2:15
+%   sections/c_model.tex     Anika  (C)  encoder and contrastive training                   ~2:00
+%   sections/d_results.tex   Dylan  (D)  evaluation, results, what's left                   ~2:15
+%   sections/z_closing.tex   everyone    questions, references, backup slides
+%
+% Edit only your own file, so we don't overwrite each other on Overleaf.
+% Anything still to fill in prints in red: \todo{...} for text, \figtodo{...} for figures.
+% Speaker notes go in \note{...} inside a frame.
+% Figures: put them in figures/ (PDF or PNG) and include with \slidefig[height]{name}.
+% Helpers (\slidepoint, \slidefig, takeaway, \slidesource, \sectiondivider) are in preamble.tex.
+
+\title{Hum a Beat, Find a Loop}
+\subtitle{Retrieving drum loops by beatboxing them}
+\author{Joshua Yu \quad Junior \quad Anika Nayak \quad Dylan Palmer}
+\date{}
+
+\begin{document}
+
+% ============================================================
+% TITLE SLIDE
+% ============================================================
+{
+\setbeamertemplate{footline}{}
+
+\begin{frame}[plain]
+    \centering
+
+    \vspace*{1.5cm}
+
+    {\fontsize{31}{36}\selectfont\bfseries
+    Hum a Beat, Find a Loop
+    \par}
+
+    \vspace{0.15cm}
+
+    {\fontsize{20}{25}\selectfont
+    Retrieving drum loops by beatboxing them
+    \par}
+
+    \vspace{0.65cm}
+
+    {\fontsize{13}{16}\selectfont
+    Joshua Yu \quad
+    Junior \todo{surname} \quad
+    Anika Nayak \quad
+    Dylan Palmer
+    \par}
+
+    \vspace{0.25cm}
+
+    {\fontsize{11}{14}\selectfont\color{gray}
+    CAP 6614 Final Project
+    \par}
+
+    \vfill
+\end{frame}
+}
+
+% ============================================================
+% PRESENTATION SECTIONS
+% ============================================================
+\input{sections/a_problem.tex}
+\input{sections/b_data.tex}
+\input{sections/c_model.tex}
+\input{sections/d_results.tex}
+\input{sections/z_closing.tex}
+
+\end{document}
