@@ -36,6 +36,7 @@ config/       music_spec.yaml and experiment configs
 data/         raw and rendered audio (gitignored)
 docs/         README.md, music_spec.md
 manifests/    library_manifest.csv, query_manifest.csv, relevance.json
+presentation/ class talk slides: a git subtree of the Overleaf deck (edit on Overleaf, not here)
 src/music/    spec loader, "same rhythm" grid function (A)
 src/library/  loop cutting and rendering (B)
 src/queries/  beatbox and tap query generation (B)
@@ -56,6 +57,10 @@ tests/
 - Run tests: `.venv/bin/pytest`
 - Lint/format: `.venv/bin/ruff check . && .venv/bin/ruff format .`
 - Imports: `src` and `tools` are packages, e.g. `from src.music.spec import load_spec`.
+- Slides: everyone edits on Overleaf. To bring the latest into the repo:
+  `git subtree pull --prefix=presentation overleaf-slides main --squash`
+  This needs a local remote, `git remote add overleaf-slides <Overleaf project git URL>`, and Overleaf git access.
+  Don't edit `presentation/` in the repo, or the next pull will conflict.
 
 ## Working style
 
