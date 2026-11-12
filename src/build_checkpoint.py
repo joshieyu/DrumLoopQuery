@@ -1,4 +1,4 @@
-"""One seeded command to regenerate a small, split-valid v0.5 review dataset.
+"""One seeded command to regenerate a small, split-valid review dataset using the current spec.
 
     python -m src.build_checkpoint --seed 0
 
@@ -49,12 +49,13 @@ def build_checkpoint(
     *,
     seed: int = 0,
     splits: tuple[str, ...] = ("train", "validation"),
-    out_dir: Path = ROOT / "results/v05_checkpoint",
+    out_dir: Path | None = None,
 ) -> dict:
     spec = load_spec()
     config = yaml.safe_load((ROOT / "config/dataset_v0.yaml").read_text())
     normalization = config["normalization"]
-    out_dir = out_dir.resolve()
+    tag = "v" + spec.version.replace(".", "")
+    out_dir = (out_dir or ROOT / f"results/{tag}_checkpoint").resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
     catalog_dir = ROOT / "results/gmd_catalog"
     catalog_summary = catalog_gmd(ROOT / "data/raw/gmd/groove", catalog_dir)
@@ -137,7 +138,7 @@ def build_checkpoint(
         drum_relative = Path("audio/library") / f"{identity}_{kit.kit_id}.wav"
         write_wav(out_dir / drum_relative, audio, sampler.sample_rate)
         active_audio.append(drum_relative)
-        clip_id = f"v05:{r['clip_id']}:{kit.kit_id}:recorded:seed{seed}"
+        clip_id = f"{tag}:{r['clip_id']}:{kit.kit_id}:recorded:seed{seed}"
         library_rows.append(
             {
                 **{
@@ -190,7 +191,7 @@ def build_checkpoint(
                 seed=query_seed,
                 normalization=normalization,
             )
-            query_id = f"v05_{identity}_{person}_{mode}_seed{seed}"
+            query_id = f"{tag}_{identity}_{person}_{mode}_seed{seed}"
             query_relative = Path("audio/queries") / f"{query_id}.wav"
             clean_relative = Path("audio/clean") / f"{query_id}.wav"
             write_wav(out_dir / query_relative, sloppy, sr)
@@ -287,7 +288,10 @@ def build_checkpoint(
         "normalization": normalization,
         "catalog": catalog_summary,
         "status": "review checkpoint; not full dataset or musical sign-off",
-        "overlap_policy": "preserve extracted sample tails internally; spec cut at clip end",
+        "overlap_policy": "choke at next actual retained onset before noise/normalization",
+        "speed_limit_ms": spec.beatbox.min_gap_ms,
+        "choke_at_next_sound": spec.beatbox.choke_at_next_sound,
+        "speed_limited_hits": int(queries.speed_limited_hits.sum()),
     }
     (out_dir / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
     (out_dir / "build_settings.json").write_text(
@@ -315,13 +319,15 @@ def build_checkpoint(
     (out_dir / "preview.html").write_text(
         '<!doctype html><html lang="en"><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width, initial-scale=1">'
-        "<title>v0.5 sloppy query review</title><style>"
+        f"<title>Spec {spec.version} query review</title><style>"
         "body{font:16px system-ui;max-width:900px;margin:40px auto;padding:0 20px;line-height:1.5}"
         "section{border-top:1px solid #ddd;padding:20px 0}h2{font-size:19px}h3{font-size:16px}"
-        "</style><h1>v0.5 query review</h1><p>Compare each drum target with clean and sloppy "
+        f"</style><h1>Spec {spec.version} query review</h1>"
+        "<p>Compare each drum target with clean and sloppy "
         "beatbox versions. The source mouth sounds are identical between each clean/sloppy pair. "
         "Offset, jitter, drops, and noise are seeded. No tempo drift. "
-        "Every clip uses the approved lead-in and ending fade.</p>"
+        "Every clip uses the approved lead-in and ending fade. The speed limit is "
+        "applied before jitter, and vocal samples stop at the next played sound.</p>"
         "<p>This small train/validation batch uses the installed training kit. "
         "It is not the complete seven-kit dataset. "
         '<a href="listening_notes.csv">Review notes</a> · '
@@ -334,7 +340,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     config = yaml.safe_load((ROOT / "config/dataset_v0.yaml").read_text())
     parser.add_argument("--seed", type=int, default=config["seed"])
-    parser.add_argument("--out", type=Path, default=ROOT / "results/v05_checkpoint")
+    parser.add_argument(
+        "--out",
+        type=Path,
+        default=ROOT / f"results/v{load_spec().version.replace('.', '')}_checkpoint",
+    )
     parser.add_argument(
         "--splits",
         nargs="+",

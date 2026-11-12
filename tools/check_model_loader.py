@@ -132,7 +132,11 @@ def check_loader(dataset: Path, model_ref: str) -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--dataset", type=Path, default=ROOT / "results/v05_checkpoint")
+    parser.add_argument(
+        "--dataset",
+        type=Path,
+        default=ROOT / f"results/v{load_spec().version.replace('.', '')}_checkpoint",
+    )
     parser.add_argument("--model-ref", default="origin/c/model-core")
     args = parser.parse_args()
     result = check_loader(args.dataset, args.model_ref)

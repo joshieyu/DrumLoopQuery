@@ -50,7 +50,7 @@ def test_priority_hat_mapping_thinning_and_ghosts():
         (2, "hhc"),
         (2.5, "hhc"),
     ]
-    assert counts == {"thinned_hat_hits": 2, "suppressed_simultaneous": 3}
+    assert counts == {"thinned_hat_hits": 2, "suppressed_simultaneous": 3, "speed_limited_hits": 0}
     assert source["pattern_id"] == record(notes)["pattern_id"]  # Target is not simplified.
     assert events == beatbox_events(source, spec=spec, seed=0)[0]
 

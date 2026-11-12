@@ -20,11 +20,29 @@ import soundfile as sf
 from src.audio import frame_audio
 from src.music.rhythm import Note, _merge_flams, _nearest_step, clip_grid, pattern_id
 from src.music.spec import MusicSpec, load_spec
+from src.queries.mixing import mix_placements
 from tools.render.kits import normalize, write_wav
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 # AVP's dataset class codes, not extra musical thresholds.
 VOICE_LABEL = {"kick": "kd", "snare": "sd"}
+
+
+def limit_event_rate(events: list[dict], *, bpm: float, spec: MusicSpec) -> list[dict]:
+    """Greedy priority order, using each candidate voice's clean-time gap.
+
+    Compare against every already-kept event, including those later in musical
+    time. Return chronological order for rendering. Labels remain untouched.
+    """
+    if not np.isfinite(bpm) or bpm <= 0:
+        raise ValueError("Positive finite BPM required")
+    priority = {voice: i for i, voice in enumerate(spec.beatbox.simultaneous_priority)}
+    kept = []
+    for event in sorted(events, key=lambda e: (priority[e["voice"]], e["beat"])):
+        gap = spec.beatbox.min_gap_ms[event["voice"]]
+        if all(abs(event["beat"] - other["beat"]) * 60000 / bpm + 1e-9 >= gap for other in kept):
+            kept.append(event)
+    return sorted(kept, key=lambda e: e["beat"])
 
 
 def beatbox_events(record: dict, *, spec: MusicSpec, seed: int) -> tuple[list[dict], dict]:
@@ -111,9 +129,15 @@ def beatbox_events(record: dict, *, spec: MusicSpec, seed: int) -> tuple[list[di
                 "source_velocity": note.velocity,
             }
         )
+    before_limit = len(events)
+    events = limit_event_rate(events, bpm=bpm, spec=spec)
     if not events:
         raise ValueError("Simplification produced no beatbox events")
-    return events, {"thinned_hat_hits": len(removed_hats), "suppressed_simultaneous": suppressed}
+    return events, {
+        "thinned_hat_hits": len(removed_hats),
+        "suppressed_simultaneous": suppressed,
+        "speed_limited_hits": before_limit - len(events),
+    }
 
 
 def mix_query(
@@ -132,7 +156,8 @@ def mix_query(
     """Place source samples at event times without extra timing/noise augmentation.
 
     One participant and one mode per query; sample rates must agree. Stereo
-    sources are averaged to mono for this query preview. Preserve full tails.
+    sources are averaged to mono. Choke before framing/normalization, using
+    actual clean placement times; augmentation performs its own choke after drops.
     """
     if not events or not np.isfinite(bpm) or bpm <= 0:
         raise ValueError("Need events and a positive finite tempo")
@@ -166,12 +191,15 @@ def mix_query(
             }
         )
     frames = max(round(duration_s * rate), max(start + len(x) for start, x in placements))
-    audio = np.zeros(frames, dtype=np.float32)
-    for start, signal in placements:
-        audio[start : start + len(signal)] += signal
-    audio = frame_audio(
-        audio, sample_rate=rate, duration_s=duration_s, settings=load_spec().loops.audio
+    spec = load_spec()
+    if spec.loops.audio.end == "cut":
+        frames = round(duration_s * rate)
+    audio, details = mix_placements(
+        placements, frames=frames, sample_rate=rate, settings=spec.beatbox
     )
+    for event, detail in zip(trace, details, strict=True):
+        event.update(detail)
+    audio = frame_audio(audio, sample_rate=rate, duration_s=duration_s, settings=spec.loops.audio)
     return (normalize(audio) if normalize_output else audio), rate, trace
 
 

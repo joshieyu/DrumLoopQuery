@@ -7,6 +7,7 @@ import soundfile as sf
 
 from src.audio import frame_audio, normalize_audio
 from src.music.spec import MusicSpec
+from src.queries.mixing import mix_placements
 
 
 def augment_query(
@@ -36,7 +37,7 @@ def augment_query(
         v: float(rng.uniform(*bounds)) for v, bounds in spec.sloppiness.drop_prob.items()
     }
     snr = float(rng.uniform(*spec.sloppiness.snr_db))
-    audio = np.zeros(round(duration_s * sample_rate), dtype=np.float32)
+    placements, retained = [], []
     events = []
     for event in trace:
         dropped = bool(rng.random() < probabilities[event["voice"]])
@@ -48,6 +49,12 @@ def augment_query(
             "frame": start,
             "dropped": dropped,
             "jitter_ms": shift,
+            "played": False,
+            "audio_start_frame": None,
+            "audio_end_frame": None,
+            "next_played_frame": None,
+            "choked_at_next_sound": False,
+            "choke_fade_frames": 0,
         }
         events.append(entry)
         if dropped:
@@ -56,9 +63,16 @@ def augment_query(
         if sr != sample_rate:
             raise ValueError("Sample rate mismatch")
         signal = signal.mean(axis=1)
-        left, right = max(0, start), min(len(audio), start + len(signal))
-        if right > left:
-            audio[left:right] += signal[left - start : right - start]
+        placements.append((start, signal))
+        retained.append(len(events) - 1)
+    audio, details = mix_placements(
+        placements,
+        frames=round(duration_s * sample_rate),
+        sample_rate=sample_rate,
+        settings=spec.beatbox,
+    )
+    for index, detail in zip(retained, details, strict=True):
+        events[index].update(detail)
     signal_rms = float(np.sqrt(np.mean(audio.astype(float) ** 2)))
     if signal_rms == 0 or not np.isfinite(audio).all():
         raise ValueError("All events dropped/outside clip, or invalid samples")

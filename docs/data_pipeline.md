@@ -1,6 +1,9 @@
 # Data pipeline: MIDI clips and AVP sound index
 
-**Current checkpoint (2026-11-09):** see [v0.5 handoff and regeneration guide](v05_handoff.md).
+**Current checkpoint:** see [v0.7 vocal rules and review guide](v07_checkpoint.md).
+The speed limit and no-overlap rule supersede the historical behavior below.
+
+**Previous checkpoint (2026-11-09):** see [v0.5 handoff and regeneration guide](v05_handoff.md).
 It supersedes older pending decisions, ringing tails, and provisional split
 behavior described in the historical checkpoints below. The current build has
 20 sloppy review queries and has passed C's loader/feature compatibility check.
