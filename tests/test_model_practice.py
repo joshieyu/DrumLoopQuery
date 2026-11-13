@@ -9,7 +9,6 @@ pytest.importorskip("scipy")  # part of the optional "model" extra
 
 from src.models.data import load_clips  # noqa: E402
 from src.models.practice import (  # noqa: E402
-    LEAD_IN_S,
     Loop,
     QuerySloppiness,
     add_noise,
@@ -25,6 +24,7 @@ from src.music.spec import load_spec  # noqa: E402
 from tools.render.kits import KITS_DIR  # noqa: E402
 
 SPEC = load_spec()
+LEAD_IN = SPEC.loops.audio.lead_in_s
 KICK, SNARE, HAT, TOM = 36, 38, 42, 48  # GMD notes (spec drum_map)
 
 
@@ -76,14 +76,14 @@ def test_timed_hits_timing_offsets_and_drops():
     hits = [(0.0, KICK, 100), (1.0, HAT, 80), (2.0, TOM, 90), (3.0, SNARE, 90)]
     rng = np.random.default_rng(0)
     clean = timed_hits(hits, 120.0, SPEC, rng)
-    assert [round(t, 6) for t, _, _ in clean] == [LEAD_IN_S + b * 0.5 for b in (0, 1, 2, 3)]
+    assert [round(t, 6) for t, _, _ in clean] == [LEAD_IN + b * 0.5 for b in (0, 1, 2, 3)]
 
     shifted = timed_hits(
         hits, 120.0, SPEC, rng, QuerySloppiness(10.0, 0.0, {"kick": 0, "snare": 0, "hats": 1}, 20)
     )
     notes = [n for _, n, _ in shifted]
     assert HAT not in notes and TOM in notes  # hats dropped; toms aren't part of the rhythm
-    assert shifted[0][0] == pytest.approx(LEAD_IN_S + 0.010)
+    assert shifted[0][0] == pytest.approx(LEAD_IN + 0.010)
 
 
 def test_add_noise_hits_the_requested_snr():

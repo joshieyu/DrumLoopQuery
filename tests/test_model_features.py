@@ -63,6 +63,7 @@ def _raw():
         (lambda r: r["features"]["r1"].update(band_edges_hz=[5000, 200]), "increasing"),
         (lambda r: r["features"]["r1"].update(band_edges_hz=[200, 20000]), "Nyquist"),
         (lambda r: r["loss"].update(name="hinge"), "loss.name"),
+        (lambda r: r["training"].update(min_query_views=5), "min_query_views"),
         (lambda r: r["audio"].update(sample_rate="fast"), "integer"),
     ],
 )

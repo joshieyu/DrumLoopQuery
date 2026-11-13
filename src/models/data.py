@@ -1,22 +1,30 @@
 """Manifests in, training batches out: Member C's data loading (README §12 contracts).
 
-    from src.models.data import FeatureCache, PatternBatchSampler, load_clips
+    from src.models.data import FeatureCache, PatternBatchSampler, load_clips, select
 
     clips = load_clips("manifests/library_manifest.csv", "manifests/query_manifest.csv")
-    cache = FeatureCache.build(clips, "r1", cfg)    # computes each clip once, then reuses
-    sampler = PatternBatchSampler(clips[clips.split == "train"], 32, 3, seed=0)
-    for rows in sampler.epoch(1): ...               # row positions, P patterns x K views
+    check_kits(clips, spec); check_speakers(clips)
+    train = select(clips, "train", spec, kits="train")   # library: kits not held out
+    test = select(clips, "test", spec, kits="test")      # library: held-out kits only
+    cache = FeatureCache.build(train, "r1", cfg)         # computes each clip once, ever
+    sampler = PatternBatchSampler(train, 32, 3, seed=0, min_query_views=1)
+    for rows in sampler.epoch(1): ...                    # row positions, P patterns x K views
 
 `load_clips` puts library loops and queries in one table with the columns the model
 needs: id, pattern_id, dualized_pattern_id, split, kind ("library", "beatbox", or
-"tap"), audio_path (absolute), and group (kit_id for loops, participant_id for queries).
-Relative audio paths are read from the repo root.
+"tap"), source ("library" for loops; the query manifest's source otherwise),
+audio_path (absolute), and group (kit_id for loops, participant_id for queries).
+Relative audio paths are read from `audio_root` (default: the repo root).
+
+Held-out kits come from the music spec: a kit whose rendering.kits split is "test"
+is never used for training or validation, only for scoring (README §5.2).
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+import os
 from dataclasses import asdict
 from pathlib import Path
 
@@ -56,7 +64,17 @@ QUERY_COLUMNS = [
     "audio_path",
 ]
 QUERY_TYPES = ("beatbox", "tap")
-CLIP_COLUMNS = ["id", "pattern_id", "dualized_pattern_id", "split", "kind", "audio_path", "group"]
+PRACTICE_SOURCE = "practice"  # src/models/practice.py's stand-in queries (their "speaker" is a kit)
+CLIP_COLUMNS = [
+    "id",
+    "pattern_id",
+    "dualized_pattern_id",
+    "split",
+    "kind",
+    "source",
+    "audio_path",
+    "group",
+]
 
 
 # --------------------------------------------------------------------------- manifests
@@ -77,6 +95,7 @@ def load_clips(
                 "dualized_pattern_id": library.dualized_pattern_id,
                 "split": library.split,
                 "kind": "library",
+                "source": "library",
                 "audio_path": library.audio_path,
                 "group": library.kit_id,
             }
@@ -95,6 +114,7 @@ def load_clips(
                     "dualized_pattern_id": queries.dualized_pattern_id,
                     "split": queries.split,
                     "kind": queries.query_type,
+                    "source": queries.source,
                     "audio_path": queries.audio_path,
                     "group": queries.participant_id,
                 }
@@ -120,6 +140,59 @@ def _read_manifest(path: str | Path, columns: list[str]) -> pd.DataFrame:
     return table
 
 
+# --------------------------------------------------------------------------- splits and kits
+
+
+def kit_splits(spec: MusicSpec) -> dict[str, str | None]:
+    """Each kit's split from the music spec: "train", "test", or None (not used)."""
+    return {kit.kit_id: kit.split for kit in spec.rendering.kits}
+
+
+def held_out_kits(spec: MusicSpec) -> list[str]:
+    """Kits the music lead held out for testing (rendering.kits split "test")."""
+    return sorted(k for k, s in kit_splits(spec).items() if s == "test")
+
+
+def check_kits(clips: pd.DataFrame, spec: MusicSpec) -> None:
+    """Raise if a library loop uses a kit that isn't in the music spec."""
+    used = set(clips.loc[clips.kind == "library", "group"])
+    unknown = sorted(used - set(kit_splits(spec)))
+    if unknown:
+        raise ValueError(
+            f"library kits not in config/music_spec.yaml rendering.kits: {unknown}; "
+            "their train/test split is unknown"
+        )
+
+
+def select(
+    clips: pd.DataFrame, split: str, spec: MusicSpec, kits: str | list[str] = "train"
+) -> pd.DataFrame:
+    """One split's clips, with its library loops limited to some kits.
+
+    kits: "train" (the kits marked split: train; for training and validation), "test"
+    (the held-out kits; raises if the spec holds none out), "all", or a list of kit ids.
+    Kits whose split is unset aren't used, so "train" and "test" both leave them out.
+    Queries are never filtered by kit.
+    """
+    rows = clips[clips.split == split]
+    library = rows.kind == "library"
+    splits = kit_splits(spec)
+    if kits == "train":
+        keep = {k for k, s in splits.items() if s == "train"}
+    elif kits == "test":
+        keep = set(held_out_kits(spec))
+        if not keep:
+            raise ValueError("no kit is marked split: test in config/music_spec.yaml yet")
+    elif kits == "all":
+        keep = set(rows.loc[library, "group"])
+    else:
+        keep = set(kits)
+        unknown = sorted(keep - set(splits))
+        if unknown:
+            raise ValueError(f"kits not in the music spec: {unknown}")
+    return rows[~library | rows.group.isin(keep)].reset_index(drop=True)
+
+
 def check_disjoint(clips: pd.DataFrame, splits: list[str]) -> None:
     """Raise if a pattern appears in more than one of `splits` (CLAUDE.md: keep splits disjoint)."""
     subset = clips[clips.split.isin(splits)]
@@ -130,6 +203,31 @@ def check_disjoint(clips: pd.DataFrame, splits: list[str]) -> None:
             f"{len(shared)} patterns appear in more than one of {splits}, e.g. "
             f"{list(shared.index[:3])}"
         )
+
+
+def check_speakers(clips: pd.DataFrame) -> None:
+    """Raise if a query speaker (participant_id) appears in more than one split.
+
+    CLAUDE.md: test AVP participants never appear in training. Practice stand-in
+    queries are skipped (their "speaker" is a drum kit), and so are empty ids.
+    """
+    queries = clips[
+        (clips.kind != "library") & (clips.source != PRACTICE_SOURCE) & (clips.group != "")
+    ]
+    shared = queries.groupby("group").split.unique()
+    shared = shared[shared.map(len) > 1]
+    if len(shared):
+        example = {k: sorted(v) for k, v in shared.head(3).items()}
+        raise ValueError(f"{len(shared)} speakers appear in more than one split, e.g. {example}")
+
+
+def limit_patterns(clips: pd.DataFrame, max_patterns: int | None, seed: int) -> pd.DataFrame:
+    """At most `max_patterns` patterns' clips, chosen at random (for quick runs)."""
+    patterns = sorted(clips.pattern_id.unique())
+    if max_patterns is None or len(patterns) <= max_patterns:
+        return clips
+    keep = set(np.random.default_rng(seed).choice(patterns, size=max_patterns, replace=False))
+    return clips[clips.pattern_id.isin(keep)].reset_index(drop=True)
 
 
 def relevant_library(
@@ -156,19 +254,24 @@ def relevant_library(
 
 
 class FeatureCache:
-    """Every clip's features for one front-end, computed once and saved as one .npz."""
+    """Features for one front-end, one small .npy file per clip, read from disk on demand.
 
-    def __init__(self, ids: np.ndarray, offsets: np.ndarray, frames: np.ndarray):
-        self.index = {str(i): k for k, i in enumerate(ids)}
-        self.offsets = offsets
-        self.frames = frames
+    Files live in data/features/<front_end>_<settings key>/ and are named by a hash of
+    the clip's id, audio path, size, and modification time. So any subset of clips
+    reuses what is already computed, re-rendered audio gets fresh features, and a
+    changed config uses a different folder. Nothing is held in memory: v0's ~40,000
+    clips would be ~2.4 GB of R3 features.
+    """
+
+    def __init__(self, root: Path, files: dict[str, Path]):
+        self.root = root
+        self.files = files
 
     def get(self, clip_id: str) -> np.ndarray:
-        k = self.index[clip_id]
-        return self.frames[self.offsets[k] : self.offsets[k + 1]].astype(np.float32)
+        return np.load(self.files[clip_id]).astype(np.float32)
 
     def __len__(self) -> int:
-        return len(self.index)
+        return len(self.files)
 
     @classmethod
     def build(
@@ -176,45 +279,49 @@ class FeatureCache:
         clips: pd.DataFrame,
         front_end: str,
         cfg: ModelConfig,
-        path: str | Path | None = None,
+        root: str | Path | None = None,
         log=print,
     ) -> FeatureCache:
-        """Load the cache at `path` if it matches these clips and settings; else compute it.
+        """Compute features for every clip that isn't cached yet; return the cache."""
+        settings = _settings(front_end, cfg)
+        key = hashlib.sha1(json.dumps(settings, sort_keys=True).encode()).hexdigest()
+        root = Path(root) if root is not None else FEATURES_DIR / f"{front_end}_{key[:12]}"
+        root.mkdir(parents=True, exist_ok=True)
+        (root / "settings.json").write_text(json.dumps(settings, indent=2) + "\n")
 
-        The match covers the front-end, the audio and feature settings, and every clip's
-        id, audio path, size, and modification time, so re-rendered audio or a changed
-        config never reuses stale features. Default path: data/features/<front_end>_<key>.npz.
-        """
-        key = _fingerprint(clips, front_end, cfg)
-        path = Path(path) if path is not None else FEATURES_DIR / f"{front_end}_{key[:12]}.npz"
-        if path.exists():
-            with np.load(path, allow_pickle=False) as f:
-                if str(f["fingerprint"]) == key:
-                    log(f"features: reusing {path}")
-                    return cls(f["ids"], f["offsets"], f["frames"])
-        log(f"features: computing {front_end} for {len(clips)} clips -> {path}")
-        arrays = []
-        for i, row in enumerate(clips.itertuples(index=False)):
+        files, missing = {}, []
+        for row in clips.itertuples(index=False):
+            path = root / f"{_clip_key(row.id, row.audio_path)}.npy"
+            files[row.id] = path
+            if not path.exists():
+                missing.append((row, path))
+        if not missing:
+            log(f"features: all {len(clips)} clips already cached in {root}")
+        else:
+            log(f"features: computing {front_end} for {len(missing)} of {len(clips)} clips")
+        for i, (row, path) in enumerate(missing):
             audio = load_audio(row.audio_path, cfg.audio.sample_rate)
-            arrays.append(compute_features(front_end, audio, cfg).astype(np.float16))
-            if (i + 1) % 500 == 0:
-                log(f"  {i + 1}/{len(clips)}")
-        offsets = np.concatenate([[0], np.cumsum([len(a) for a in arrays])]).astype(np.int64)
-        frames = np.concatenate(arrays, axis=0)
-        ids = np.array(list(clips.id), dtype=str)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        np.savez(path, ids=ids, offsets=offsets, frames=frames, fingerprint=np.array(key))
-        return cls(ids, offsets, frames)
+            tmp = path.with_name(path.stem + ".tmp.npy")
+            np.save(tmp, compute_features(front_end, audio, cfg).astype(np.float16))
+            os.replace(tmp, path)  # a crash never leaves a half-written file under the real name
+            if (i + 1) % 1000 == 0:
+                log(f"  {i + 1}/{len(missing)}")
+        return cls(root, files)
 
 
-def _fingerprint(clips: pd.DataFrame, front_end: str, cfg: ModelConfig) -> str:
-    settings = {"front_end": front_end, "audio": asdict(cfg.audio), "r1": asdict(cfg.r1)}
-    settings["r3"] = asdict(cfg.r3)
-    h = hashlib.sha1(json.dumps(settings, sort_keys=True).encode())
-    for row in clips.itertuples(index=False):
-        stat = Path(row.audio_path).stat()
-        h.update(f"{row.id}|{row.audio_path}|{stat.st_size}|{stat.st_mtime_ns}\n".encode())
-    return h.hexdigest()
+def _settings(front_end: str, cfg: ModelConfig) -> dict:
+    return {
+        "front_end": front_end,
+        "audio": asdict(cfg.audio),
+        "r1": asdict(cfg.r1),
+        "r3": asdict(cfg.r3),
+    }
+
+
+def _clip_key(clip_id: str, audio_path: str) -> str:
+    stat = Path(audio_path).stat()
+    text = f"{clip_id}|{audio_path}|{stat.st_size}|{stat.st_mtime_ns}"
+    return hashlib.sha1(text.encode()).hexdigest()[:24]
 
 
 # --------------------------------------------------------------------------- batches
@@ -223,21 +330,34 @@ def _fingerprint(clips: pd.DataFrame, front_end: str, cfg: ModelConfig) -> str:
 class PatternBatchSampler:
     """Batches of `batch_patterns` patterns with up to `views_per_pattern` clips each.
 
-    Only patterns with at least two clips are used (a lone clip has no positive). Each
-    epoch shuffles the patterns and, within a pattern, picks views without replacement.
-    The order depends only on (seed, epoch), so runs are reproducible.
+    Only patterns with at least two clips are used (a lone clip has no positive). With
+    `min_query_views`, each pattern that has queries contributes at least that many of
+    them plus at least one library loop when it has one, so batches hold query-to-loop
+    pairs (the retrieval task) rather than only loop-to-loop ones. The other views are
+    picked at random, without replacement. The order depends only on (seed, epoch).
     """
 
     def __init__(
-        self, clips: pd.DataFrame, batch_patterns: int, views_per_pattern: int, seed: int = 0
+        self,
+        clips: pd.DataFrame,
+        batch_patterns: int,
+        views_per_pattern: int,
+        seed: int = 0,
+        min_query_views: int = 0,
     ):
         if batch_patterns < 2:
             raise ValueError("batch_patterns must be at least 2, so every batch has negatives")
-        groups = clips.reset_index(drop=True).groupby("pattern_id").indices
+        if not 0 <= min_query_views <= views_per_pattern:
+            raise ValueError("min_query_views must be between 0 and views_per_pattern")
+        table = clips.reset_index(drop=True)
+        is_query = (table.kind != "library").to_numpy()
+        groups = table.groupby("pattern_id").indices
         self.patterns = sorted(p for p, rows in groups.items() if len(rows) >= 2)
-        self.rows = {p: np.asarray(groups[p]) for p in self.patterns}
+        self.queries = {p: groups[p][is_query[groups[p]]] for p in self.patterns}
+        self.loops = {p: groups[p][~is_query[groups[p]]] for p in self.patterns}
         self.batch_patterns = batch_patterns
         self.views = views_per_pattern
+        self.min_query_views = min_query_views
         self.seed = seed
         if len(self.patterns) < 2:
             raise ValueError("need at least two patterns with two or more clips each")
@@ -257,8 +377,20 @@ class PatternBatchSampler:
                 continue
             batch = []
             for p in chunk:
-                rows = self.rows[p]
-                take = min(self.views, len(rows))
-                batch.extend(int(r) for r in rng.choice(rows, size=take, replace=False))
+                batch.extend(self._views(p, rng))
             batches.append(batch)
         return batches
+
+    def _views(self, pattern: str, rng: np.random.Generator) -> list[int]:
+        queries, loops = self.queries[pattern], self.loops[pattern]
+        chosen: list[int] = []
+        if self.min_query_views and len(queries):
+            n = min(self.min_query_views, len(queries))
+            chosen += [int(r) for r in rng.choice(queries, size=n, replace=False)]
+            if len(loops) and len(chosen) < self.views:
+                chosen.append(int(rng.choice(loops)))
+        rest = np.setdiff1d(np.concatenate([queries, loops]), chosen)
+        take = min(self.views - len(chosen), len(rest))
+        if take > 0:
+            chosen += [int(r) for r in rng.choice(rest, size=take, replace=False)]
+        return chosen

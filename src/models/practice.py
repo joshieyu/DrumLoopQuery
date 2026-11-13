@@ -51,7 +51,6 @@ from tools.render.sampler import Sampler
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PRACTICE_DIR = REPO_ROOT / "data" / "practice"
 CATALOG = PRACTICE_DIR / "gmd_catalog" / "loops.jsonl"
-LEAD_IN_S = 0.05
 DEFAULT_COUNTS = {"train": 400, "validation": 50, "test": 100}
 
 
@@ -175,7 +174,7 @@ def timed_hits(
     seconds_per_beat = 60.0 / bpm
     out = []
     for beat, pitch, velocity in hits:
-        t = LEAD_IN_S + beat * seconds_per_beat
+        t = spec.loops.audio.lead_in_s + beat * seconds_per_beat
         if slop is not None:
             voice = spec.voice_of(pitch)
             if voice is not None and rng.random() < slop.drop_prob[voice]:
@@ -263,7 +262,7 @@ def build_practice(
         stem = safe_name(loop.clip_id)
         rng = np.random.default_rng([seed, i])
         bpm = render_tempo(loop.tempo_bpm, spec, rng)
-        audio = normalize(lib.render(timed_hits(hits, bpm, spec, rng), _length_s(loop, bpm)))
+        audio = normalize(lib.render(timed_hits(hits, bpm, spec, rng), _length_s(loop, bpm, spec)))
         lib_path = out_dir / "audio" / "library" / f"{stem}.flac"
         write_flac(lib_path, audio, sample_rate)
         library_rows.append(
@@ -285,7 +284,7 @@ def build_practice(
             qrng = np.random.default_rng([seed, i, k + 1])
             qbpm = render_tempo(loop.tempo_bpm, spec, qrng)
             slop = draw_sloppiness(spec, qrng)
-            dry = qry.render(timed_hits(hits, qbpm, spec, qrng, slop), _length_s(loop, qbpm))
+            dry = qry.render(timed_hits(hits, qbpm, spec, qrng, slop), _length_s(loop, qbpm, spec))
             audio = normalize(add_noise(dry, slop.snr_db, qrng))
             q_path = out_dir / "audio" / "queries" / f"{stem}_q{k}.flac"
             write_flac(q_path, audio, sample_rate)
@@ -333,8 +332,8 @@ def build_practice(
     }
 
 
-def _length_s(loop: Loop, bpm: float) -> float:
-    return LEAD_IN_S + loop.beats * 60.0 / bpm
+def _length_s(loop: Loop, bpm: float, spec: MusicSpec) -> float:
+    return spec.loops.audio.lead_in_s + loop.beats * 60.0 / bpm
 
 
 def _write_listen_page(path: Path, entries, library_kit: str, query_kit: str) -> None:

@@ -12,6 +12,16 @@ src.eval.evaluate's evaluate() and summarize(), D's single scoring code. Results
 results/eval/<system>_<testset>/ (summary.json, per_query.csv), the layout D's command
 line uses. (D's command line itself currently crashes on startup: evaluate.py has no
 module docstring for argparse. Calling its functions directly avoids that.)
+
+The library is the split's loops on the kits the music spec holds out for testing
+(--library-kits test, the default), so scoring never uses a kit the model trained on.
+If the spec holds no kit out yet (as with the practice data), every kit is used and a
+warning says so. --library-kits all, or a comma-separated list, overrides that.
+
+Cross-kit fallback (Joshua's presentation plan, if the beatbox generator is late):
+--query-kit K uses the split's loops on kit K as the queries and its loops on the
+other library kits as the library. The answer key then comes from the same-rhythm rule
+(same pattern_id) and is saved next to the results; --relevance isn't needed.
 """
 
 from __future__ import annotations
@@ -33,9 +43,17 @@ from src.eval.evaluate import (
     summarize,
 )
 from src.models.config import ModelConfig, config_from_dict
-from src.models.data import FeatureCache, load_clips
+from src.models.data import REPO_ROOT as DEFAULT_AUDIO_ROOT
+from src.models.data import (
+    FeatureCache,
+    held_out_kits,
+    load_clips,
+    relevant_library,
+    select,
+)
 from src.models.encoder import PAD_MULTIPLE, RhythmEncoder, kind_ids, pad_features
 from src.models.export import embedding_path, write_embeddings
+from src.music.spec import MusicSpec, load_spec
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 EVAL_DIR = REPO_ROOT / "results" / "eval"
@@ -116,28 +134,79 @@ def load_run(
     return model.eval(), cfg, ckpt["front_end"], ckpt
 
 
+def library_kits(spec: MusicSpec, choice: str, log=print) -> str | list[str]:
+    """Resolve --library-kits: "test" (held-out kits), "all", or "kit_a,kit_b"."""
+    if choice == "test" and not held_out_kits(spec):
+        log("warning: the music spec holds no kit out for testing yet; scoring on every kit")
+        return "all"
+    if choice in ("test", "all"):
+        return choice
+    return [k.strip() for k in choice.split(",") if k.strip()]
+
+
+def scoring_sets(
+    clips: pd.DataFrame,
+    spec: MusicSpec,
+    split: str,
+    kits: str | list[str],
+    query_kit: str | None = None,
+) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, list[str]] | None]:
+    """(queries, library, answer key or None) for one split.
+
+    Normal mode: the split's queries against its loops on `kits`; the answer key is D's
+    relevance.json (None here). Cross-kit mode (`query_kit`): the split's loops on that
+    kit are the queries, its loops on the other `kits` the library, and the answer key
+    comes from the same-rhythm rule.
+    """
+    rows = select(clips, split, spec, kits)
+    library = rows[rows.kind == "library"]
+    if query_kit is None:
+        queries = rows[rows.kind != "library"]
+        answer_key = None
+    else:
+        everything = select(clips, split, spec, "all")
+        queries = everything[(everything.kind == "library") & (everything.group == query_kit)]
+        library = library[library.group != query_kit]
+        if queries.empty:
+            raise ValueError(f"no {split} loops on query kit {query_kit!r}")
+        answer_key = relevant_library(queries, library, spec)
+    if library.empty or queries.empty:
+        raise ValueError(f"split {split!r} needs both library loops and queries here")
+    return queries.reset_index(drop=True), library.reset_index(drop=True), answer_key
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Embed a test set and score it with D's code.")
     parser.add_argument("--run", type=Path, required=True, help="results/runs/<name>")
     parser.add_argument("--which", default="best", choices=["best", "last"])
     parser.add_argument("--library", type=Path, required=True)
     parser.add_argument("--queries", type=Path, required=True)
-    parser.add_argument("--relevance", type=Path, required=True)
+    parser.add_argument("--relevance", type=Path, help="D's answer key (not with --query-kit)")
     parser.add_argument("--split", default="test")
+    parser.add_argument(
+        "--library-kits", default="test", help="test (held-out kits), all, or kit_a,kit_b"
+    )
+    parser.add_argument("--query-kit", help="cross-kit fallback: this kit's loops are the queries")
     parser.add_argument("--system", required=True, help="e.g. r1_practice")
     parser.add_argument("--testset", required=True, help="e.g. practice_test")
     parser.add_argument("--device", default="auto")
     parser.add_argument("--n-boot", type=int, default=10_000)
+    parser.add_argument("--audio-root", type=Path, default=DEFAULT_AUDIO_ROOT)
     args = parser.parse_args(argv)
+    if (args.relevance is None) == (args.query_kit is None):
+        parser.error("give --relevance (D's answer key), or --query-kit for the cross-kit mode")
 
+    spec = load_spec()
     device = pick_device(args.device)
     model, cfg, front_end, ckpt = load_run(args.run, args.which, device)
-    clips = load_clips(args.library, args.queries)
-    cache = FeatureCache.build(clips, front_end, cfg)  # the whole manifest, as in training
-    test = clips[clips.split == args.split]
-    library, queries = test[test.kind == "library"], test[test.kind != "library"]
-    if library.empty or queries.empty:
-        raise SystemExit(f"split {args.split!r} needs both library clips and queries")
+    clips = load_clips(args.library, args.queries, args.audio_root)
+    kits = library_kits(spec, args.library_kits)
+    queries, library, answer_key = scoring_sets(clips, spec, args.split, kits, args.query_kit)
+    print(
+        f"scoring {len(queries)} queries against {len(library)} loops on kits "
+        f"{sorted(library.group.unique())}"
+    )
+    cache = FeatureCache.build(pd.concat([queries, library], ignore_index=True), front_end, cfg)
 
     path = write_embeddings(
         embedding_path(args.system, args.testset),
@@ -146,15 +215,23 @@ def main(argv: list[str] | None = None) -> None:
         list(library.id),
         embed_clips(model, library, cache, device),
     )
-    table, counts = evaluate(path, load_relevance(args.relevance))
-    summary = summarize(table, n_boot=args.n_boot)
     out = EVAL_DIR / f"{args.system}_{args.testset}"
     out.mkdir(parents=True, exist_ok=True)
+    if answer_key is None:
+        answer_key = load_relevance(args.relevance)
+    else:
+        (out / "relevance.json").write_text(json.dumps(answer_key, indent=1) + "\n")
+    table, counts = evaluate(path, answer_key)
+    summary = summarize(table, n_boot=args.n_boot)
     table.to_csv(out / "per_query.csv", index=False)
     result = {
         "system_file": str(path),
         "run": str(args.run),
         "checkpoint_epoch": ckpt["epoch"],
+        "split": args.split,
+        "library_kits": sorted(library.group.unique()),
+        "query_kit": args.query_kit,
+        "answer_key": str(args.relevance) if args.relevance else "same-rhythm rule (cross-kit)",
         **counts,
         "metrics": summary,
     }

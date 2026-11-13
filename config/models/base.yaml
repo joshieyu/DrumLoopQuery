@@ -50,6 +50,9 @@ loss:
 training:
   batch_patterns: 32
   views_per_pattern: 3
+  # A pattern with queries puts at least this many in (plus at least one library loop),
+  # so batches pair queries with loops, the actual retrieval task. 0: views at random.
+  min_query_views: 1
   learning_rate: 3.0e-4
   weight_decay: 0.01
   epochs: 30

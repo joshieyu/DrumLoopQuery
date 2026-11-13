@@ -85,6 +85,7 @@ class LossConfig:
 class TrainingConfig:
     batch_patterns: int
     views_per_pattern: int
+    min_query_views: int
     learning_rate: float
     weight_decay: float
     epochs: int
@@ -207,6 +208,7 @@ def parse_model_config(raw: Any, path: Path = DEFAULT_PATH) -> ModelConfig:
         [
             "batch_patterns",
             "views_per_pattern",
+            "min_query_views",
             "learning_rate",
             "weight_decay",
             "epochs",
@@ -218,12 +220,15 @@ def parse_model_config(raw: Any, path: Path = DEFAULT_PATH) -> ModelConfig:
     training = TrainingConfig(
         batch_patterns=_int(t["batch_patterns"], "training.batch_patterns", lo=1),
         views_per_pattern=_int(t["views_per_pattern"], "training.views_per_pattern", lo=2),
+        min_query_views=_int(t["min_query_views"], "training.min_query_views", lo=0),
         learning_rate=_num(t["learning_rate"], "training.learning_rate", lo=1e-12),
         weight_decay=_num(t["weight_decay"], "training.weight_decay", lo=0),
         epochs=_int(t["epochs"], "training.epochs", lo=1),
         max_grad_norm=_num(t["max_grad_norm"], "training.max_grad_norm", lo=1e-12),
         seed=_int(t["seed"], "training.seed", lo=0),
     )
+    if training.min_query_views > training.views_per_pattern:
+        raise ModelConfigError("training.min_query_views can't exceed training.views_per_pattern")
 
     return ModelConfig(str(top["version"]), audio, r1, r3, encoder, loss, training, Path(path))
 
