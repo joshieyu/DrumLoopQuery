@@ -1,0 +1,148 @@
+% ============================================================
+% B: Overall pipeline, library, fake beatbox queries   (Junior, ~2:15)
+% ============================================================
+% Scaffold: the pipeline figure and the facts below are filled in from our repo
+% (spec v0.7, B's v0.5 handoff). Replace every red TODO, and cut whatever you
+% don't need to fit the time.
+\section{Method: Data}
+\presenter{Junior}
+
+\tikzset{
+  pbox/.style={draw=UCFBlack, rounded corners=3pt, fill=LightGray, minimum height=1.0cm,
+               align=center, font=\footnotesize, inner sep=4pt},
+  pplain/.style={pbox, fill=white},
+  phot/.style={pbox, fill=UCFGold!60},
+  parr/.style={-{Stealth[length=1.8mm]}, thick, UCFBlack},
+  pdash/.style={-{Stealth[length=1.8mm]}, thick, SoftGray, dashed},
+  pnote/.style={font=\scriptsize, text=SoftGray, align=center},
+  ptag/.style={circle, fill=UCFBlack, text=white, font=\tiny\bfseries, inner sep=1.2pt},
+}
+% Role tag on a box corner: \roletag{node}{A}
+\newcommand{\roletag}[2]{\node[ptag, anchor=center] at (#1.north east) {#2};}
+
+% ------------------------------------------------------------
+\begin{frame}{Overall pipeline}
+  \slidepoint{Library loops and fake queries are rendered from the same MIDI pattern, so every query's right answers are known exactly.}
+
+  \centering
+  \begin{adjustbox}{max width=\textwidth}
+  \begin{tikzpicture}[node distance=0.55cm and 0.75cm]
+    \node[pplain] (midi) {GMD drum\\pattern (MIDI)};
+    \node[pbox, above right=0.1cm and 0.9cm of midi] (kits) {Render through\\7 drum kits};
+    \node[pbox, below right=0.1cm and 0.9cm of midi] (bb) {AVP mouth sounds\\simplify + sloppiness};
+    \node[pplain, right=of kits] (loop) {Library\\loop};
+    \node[pplain, right=of bb] (fake) {Fake beatbox\\query};
+    \node[pplain, below=0.45cm of fake] (real) {Real beatbox\\{\scriptsize team, test only}};
+    \coordinate (mid) at ($(loop.east)!0.5!(fake.east)$);
+    \node[phot, right=1.0cm of mid] (enc) {Shared\\rhythm encoder};
+    \node[pbox, right=of enc] (emb) {128-d\\embedding};
+    \node[pplain, right=of emb] (ret) {Top-$k$ loops\\by cosine};
+
+    \draw[parr] (midi.east) -- ++(0.35,0) |- (kits.west);
+    \draw[parr] (midi.east) -- ++(0.35,0) |- (bb.west);
+    \draw[parr] (kits) -- (loop);
+    \draw[parr] (bb) -- (fake);
+    \draw[parr] (loop.east) -- (enc.west);
+    \draw[parr] (fake.east) -- (enc.west);
+    \draw[pdash] (real.east) -| (enc.south);
+    \draw[parr] (enc) -- (emb);
+    \draw[parr] (emb) -- (ret);
+
+    \node[pnote, above=0.25cm of enc] {trained with SupCon:\\same pattern = positive pair};
+    \node[pnote, below=0.12cm of midi] {grid label =\\pattern ID};
+
+    \roletag{midi}{A}
+    \roletag{bb}{A\,B}
+    \roletag{kits}{B}
+    \roletag{enc}{C}
+    \roletag{ret}{D}
+  \end{tikzpicture}
+  \end{adjustbox}
+
+  \vspace{0.2cm}
+  {\footnotesize\color{SoftGray}
+  \textbf{A} Joshua: musical rules (what counts as the same rhythm, how people beatbox) \quad
+  \textbf{B} Junior: library and queries \quad
+  \textbf{C} Anika: model \quad
+  \textbf{D} Dylan: answer key and evaluation\par}
+
+  \note{
+    \todo{B: speaker notes.} Walk left to right: one MIDI pattern goes two ways, through drum kits to make
+    library loops, and through real people's mouth sounds to make fake beatbox queries. Both go through one
+    shared encoder; training pulls the same pattern together. At test time, real beatboxes go through
+    the same encoder.
+  }
+\end{frame}
+
+% ------------------------------------------------------------
+\begin{frame}{The loop library}
+  \slidepoint{Real drummers' MIDI, cut into 2-bar loops and played through drum kits, with separate kits for training and testing.}
+
+  \begin{columns}[T,onlytextwidth]
+    \column{0.5\textwidth}
+      \small
+      \begin{itemize}
+        \item \textbf{Source:} Groove MIDI Dataset, 10 drummers, 388 performances.
+        \item \textbf{8,643 two-bar loops} with GMD's own split: 6,904 train / 846 validation / 893 test.
+        \item \textbf{7 free acoustic kits:} 5 for training (4 AVL kits, DRSKit),
+              2 held out for test (Salamander, MuldjordKit).
+        \item Recorded tempo, with a 0.25\,s lead-in.
+        \item \todo{final rendered count (loops $\times$ kits) and hours of audio}
+      \end{itemize}
+    \column{0.46\textwidth}
+      \figtodo[4.6cm]{one loop on two kits (spectrograms or waveforms), or a table of clips per split}
+  \end{columns}
+
+  \note{
+    \todo{B: speaker notes.}
+  }
+\end{frame}
+
+% ------------------------------------------------------------
+\begin{frame}{Fake beatbox queries}
+  \slidepoint{Each pattern is ``beatboxed'' with one real person's mouth sounds, simplified and made sloppy the way amateurs are.}
+
+  \begin{columns}[T,onlytextwidth]
+    \column{0.5\textwidth}
+      \small
+      \begin{itemize}
+        \item \textbf{Voices:} AVP dataset, 28 amateur beatboxers, 9,776 usable kick, snare and hi-hat sounds.
+              People split 20 train / 3 validation / 5 test.
+        \item \textbf{Simplify like a person:} one sound at a time (kick, then snare, then hats);
+              sounds never overlap; a speed limit (next slide).
+        \item \textbf{Sloppiness:} steady rush or drag (up to $\pm$20\,ms), per-hit wobble (up to 40\,ms),
+              dropped hits (hats up to 40\%), background noise (10--40\,dB SNR).
+        \item \todo{number of fake queries per split}
+      \end{itemize}
+    \column{0.46\textwidth}
+      \figtodo[4.6cm]{clean vs.\ sloppy beatbox of one pattern, with the drum loop (or play the audio)}
+  \end{columns}
+
+  \note{
+    \todo{B: speaker notes.} Every value here comes from the music spec (config/music\_spec.yaml, v0.7).
+  }
+\end{frame}
+
+% ------------------------------------------------------------
+% Prepared by Joshua from the listening work. Present it here, or move it to
+% Joshua's section if that flows better. Cut it if time is short.
+\begin{frame}{Making the fake beatboxes sound human}
+  \slidepoint{The first fake beatboxes were twice as fast as any real person. A speed limit, tuned by ear, fixed that.}
+
+  \slidefig[3.4cm]{beatbox_speed.pdf}
+
+  \vspace{0.1cm}
+  \small
+  \begin{itemize}
+    \item Hits a drummer plays almost together landed on neighbouring grid steps and were voiced as separate sounds.
+    \item \textbf{Speed limit:} a kick or snare needs 120\,ms from the sounds kept before it, a hat 250\,ms.
+          Chosen by ear from five versions; 80\% of kicks and snares are still voiced.
+    \item The answer key never changes: only what the fake beatboxer voices does.
+  \end{itemize}
+
+  \note{
+    Compared over 1,500 random loops against 56 real AVP improvisations. Before: a median 5.9 sounds per
+    second, and a quarter of gaps under 100 ms, which nobody can beatbox. With the limit: 3.4 per second,
+    and the shortest gaps match real people's (about 130 ms).
+  }
+\end{frame}

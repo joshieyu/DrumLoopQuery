@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Recording Beat Picker</title>
+<style>
+:root {
+  --bg: #fbfbfa; --panel: #ffffff; --fg: #1b1b1a; --muted: #6a6a66; --line: #e4e3df;
+  --accent: #2f5fd0; --accent-ink: #ffffff; --chip: #f0efeb; --row-hi: #eef3ff;
+  --kick: #2f5fd0; --snare: #c8433a; --hats: #b07d00; --grid: #e7e6e2; --bar: #b9b8b3;
+  --warn: #8a5a00;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141413; --panel: #1c1c1b; --fg: #ecebe7; --muted: #a3a29c; --line: #2f2e2b;
+    --accent: #7d9cf0; --accent-ink: #10131c; --chip: #262624; --row-hi: #1f2638;
+    --kick: #7d9cf0; --snare: #f0857c; --hats: #e2b54a; --grid: #2a2a28; --bar: #55544f;
+    --warn: #e2b54a;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #141413; --panel: #1c1c1b; --fg: #ecebe7; --muted: #a3a29c; --line: #2f2e2b;
+  --accent: #7d9cf0; --accent-ink: #10131c; --chip: #262624; --row-hi: #1f2638;
+  --kick: #7d9cf0; --snare: #f0857c; --hats: #e2b54a; --grid: #2a2a28; --bar: #55544f;
+  --warn: #e2b54a;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.45 system-ui, -apple-system, sans-serif; }
+main { max-width: 1180px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { font-size: 22px; margin: 0 0 4px; }
+p.lede { color: var(--muted); margin: 0 0 16px; max-width: 820px; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: end; }
+.controls label { display: flex; flex-direction: column; font-size: 12px; color: var(--muted); gap: 3px; }
+.controls input, .controls select { font: inherit; font-size: 14px; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; }
+.controls input[type=number] { width: 78px; }
+.controls input[type=search] { width: 150px; }
+.controls .check { flex-direction: row; align-items: center; gap: 6px; font-size: 14px; color: var(--fg); padding-bottom: 4px; }
+button { font: inherit; font-size: 14px; border: 1px solid var(--line); background: var(--chip); color: var(--fg); border-radius: 6px; padding: 5px 10px; cursor: pointer; }
+button:hover { border-color: var(--muted); }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.summary { display: flex; flex-wrap: wrap; gap: 8px 22px; font-size: 14px; }
+.summary b { font-variant-numeric: tabular-nums; }
+.summary .grp { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.summary .lab { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+.count { color: var(--muted); font-size: 13px; margin: 6px 2px 8px; }
+.list { display: flex; flex-direction: column; gap: 6px; }
+.row { display: grid; grid-template-columns: 40px 420px 1fr auto; gap: 12px; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+.row.playing { background: var(--row-hi); border-color: var(--accent); }
+.play { width: 34px; height: 34px; border-radius: 50%; padding: 0; font-size: 13px; }
+.gridwrap { display: grid; grid-template-columns: 14px 1fr; gap: 0 4px; align-items: center; font-size: 10px; color: var(--muted); }
+.gridwrap > div span { display: block; height: 10px; line-height: 10px; text-align: center; }
+canvas { display: block; }
+.info { min-width: 0; }
+.info .t { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.info .m { color: var(--muted); font-size: 13px; }
+.badge { display: inline-block; font-size: 12px; padding: 0 6px; border-radius: 10px; background: var(--chip); color: var(--fg); margin-right: 4px; }
+.badge.warn { color: var(--warn); }
+.who { display: flex; gap: 4px; }
+.who button { width: 32px; padding: 4px 0; font-weight: 600; }
+.who button.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.more { margin: 12px auto; display: block; }
+.legend { display: inline-flex; gap: 10px; font-size: 12px; color: var(--muted); }
+.sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: -1px; margin-right: 3px; }
+.hidden { display: none; }
+@media (max-width: 860px) {
+  .row { grid-template-columns: 40px 1fr; }
+  .row .gridwrap { grid-column: 2; }
+  .row .info, .row .who { grid-column: 2; }
+  canvas { max-width: 100%; height: auto; }
+}
+</style>
+</head>
+<body>
+<main>
+  <h1>Recording beat picker</h1>
+  <p class="lede">Every GMD test-split loop, played twice through <span id="kit"></span>, as participants will hear it. Pick beats for each member with the A–D buttons. Picks are saved in this browser; export the CSV to keep them. Aim for a balance of straight and swung, sparse and busy, and skip beats that are unreasonable to beatbox.</p>
+  <p class="lede"><b>Feel</b> comes from where the off-beat hits fall on the 12-steps-per-beat grid: <i>triplet share</i> is the share on triplet steps rather than 16th steps, and you set the swung cutoff. <i>Loose</i> is the share of off-beat hits on neither, i.e. loosely played timing. <b>Density</b> splits the test split into thirds by sounds per loop.</p>
+
+  <div class="panel controls">
+    <label>Beats per member <input id="target" type="number" min="1" max="200" value="10"></label>
+    <label>Feel
+      <select id="feel"><option value="">All</option><option>straight</option><option>swung</option></select>
+    </label>
+    <label title="A loop counts as swung when at least this share of its off-beat hits sit on triplet steps rather than 16th steps">Swung at triplet share ≥ (%) <input id="swingCut" type="number" min="0" max="100" step="5" value="50"></label>
+    <label title="Share of off-beat hits on neither a 16th nor a triplet step: loosely played timing">Loose timing at most (%) <input id="maxLoose" type="number" min="0" max="100" step="5"></label>
+    <label>Density
+      <select id="density"><option value="">All</option><option>sparse</option><option>medium</option><option>busy</option></select>
+    </label>
+    <label>Tempo from <input id="bpmMin" type="number" min="0" step="1"></label>
+    <label>to <input id="bpmMax" type="number" min="0" step="1"></label>
+    <label>Max sounds/s <input id="maxRate" type="number" min="0" step="0.5"></label>
+    <label>Fastest gap at least (ms) <input id="minGap" type="number" min="0" step="10"></label>
+    <label>Drummer <select id="drummer"><option value="">All</option></select></label>
+    <label>Style <select id="style"><option value="">All</option></select></label>
+    <label>Sort
+      <select id="sort">
+        <option value="shuffle">Shuffled</option>
+        <option value="perf">Performance, bar</option>
+        <option value="bpm">Tempo</option>
+        <option value="rate">Sounds per second</option>
+        <option value="gap">Fastest gap</option>
+        <option value="trip">Triplet share</option>
+        <option value="loose">Loose timing</option>
+      </select>
+    </label>
+    <label class="check"><input id="pickedOnly" type="checkbox"> Picked only</label>
+    <label class="check"><input id="onePerPerf" type="checkbox"> One bar per performance</label>
+  </div>
+
+  <div class="panel">
+    <div class="summary" id="summary"></div>
+    <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap; align-items:center">
+      <button class="primary" id="export">Export CSV</button>
+      <button id="importBtn">Import CSV</button>
+      <input id="importFile" type="file" accept=".csv,text/csv" class="hidden">
+      <button id="clear">Clear picks</button>
+      <span class="legend"><span><span class="sw" style="background:var(--kick)"></span>K kick</span><span><span class="sw" style="background:var(--snare)"></span>S snare</span><span><span class="sw" style="background:var(--hats)"></span>H hats</span><span>lines: beats, darker at the bar</span></span>
+    </div>
+  </div>
+
+  <div class="count" id="count"></div>
+  <div class="list" id="list"></div>
+  <button class="more hidden" id="more">Show more</button>
+</main>
+
+<script>
+const PAYLOAD = /*DATA*/{};
+const MEMBERS = ["A", "B", "C", "D"];
+const PAGE = 60;
+const KEY = "beat_picker_v1";
+const store = {
+  get() { try { return JSON.parse(localStorage.getItem(KEY) || "{}"); } catch (e) { return {}; } },
+  set(v) { try { localStorage.setItem(KEY, JSON.stringify(v)); } catch (e) {} },
+};
+let saved = store.get();
+let picks = saved.picks || {};          // clip_id -> "AB"
+let DATA, META, rows = [], shown = PAGE, terciles = [0, 0];
+const player = new Audio();
+let playingId = null;
+
+const $ = (id) => document.getElementById(id);
+const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+const tripShare = (r) => r.triplet_off / Math.max(1, r.straight_off + r.triplet_off);
+const loose = (r) => r.other_off / Math.max(1, r.straight_off + r.triplet_off + r.other_off);
+const pct = (x) => Math.round(100 * x);
+function feelOf(r) { const c = parseFloat($("swingCut").value); return tripShare(r) * 100 >= (isNaN(c) ? 50 : c) ? "swung" : "straight"; }
+function density(r) { return r.sounds <= terciles[0] ? "sparse" : r.sounds <= terciles[1] ? "medium" : "busy"; }
+
+function seededOrder(n) {
+  let s = 1234567;
+  const rand = () => ((s = (s * 1103515245 + 12345) % 2147483648) / 2147483648);
+  const a = [...Array(n).keys()];
+  for (let i = n - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+let shuffleRank;
+
+function filters() {
+  return {
+    feel: $("feel").value, density: $("density").value,
+    swingCut: parseFloat($("swingCut").value), maxLoose: parseFloat($("maxLoose").value),
+    bpmMin: parseFloat($("bpmMin").value), bpmMax: parseFloat($("bpmMax").value),
+    maxRate: parseFloat($("maxRate").value), minGap: parseFloat($("minGap").value),
+    drummer: $("drummer").value, style: $("style").value, sort: $("sort").value,
+    pickedOnly: $("pickedOnly").checked, onePerPerf: $("onePerPerf").checked,
+    target: parseInt($("target").value, 10) || 10,
+  };
+}
+function saveState() { store.set({ picks, filters: filters() }); }
+
+function apply() {
+  const f = filters();
+  let out = DATA.filter((r) =>
+    (!f.feel || feelOf(r) === f.feel) &&
+    (isNaN(f.maxLoose) || loose(r) * 100 <= f.maxLoose) &&
+    (!f.density || density(r) === f.density) &&
+    (isNaN(f.bpmMin) || r.bpm >= f.bpmMin) &&
+    (isNaN(f.bpmMax) || r.bpm <= f.bpmMax) &&
+    (isNaN(f.maxRate) || r.sounds_per_s <= f.maxRate) &&
+    (isNaN(f.minGap) || (r.min_gap_ms ?? 1e9) >= f.minGap) &&
+    (!f.drummer || r.drummer === f.drummer) &&
+    (!f.style || r.style === f.style) &&
+    (!f.pickedOnly || picks[r.clip_id]));
+  const by = {
+    shuffle: (a, b) => shuffleRank[a.i] - shuffleRank[b.i],
+    perf: (a, b) => a.i - b.i,
+    bpm: (a, b) => a.bpm - b.bpm || a.i - b.i,
+    rate: (a, b) => a.sounds_per_s - b.sounds_per_s || a.i - b.i,
+    gap: (a, b) => (b.min_gap_ms ?? 1e9) - (a.min_gap_ms ?? 1e9) || a.i - b.i,
+    trip: (a, b) => tripShare(a) - tripShare(b) || a.i - b.i,
+    loose: (a, b) => loose(a) - loose(b) || a.i - b.i,
+  }[f.sort];
+  out.sort(by);
+  if (f.onePerPerf) {
+    const seen = new Set();
+    out = out.filter((r) => (seen.has(r.perf) ? false : (seen.add(r.perf), true)));
+  }
+  rows = out;
+  shown = PAGE;
+  render();
+  saveState();
+}
+
+function drawGrid(canvas, r) {
+  const spb = META.steps_per_beat, steps = r.beats * spb, cw = 4, rh = 9, gap = 1;
+  const dpr = window.devicePixelRatio || 1;
+  const w = steps * cw, h = META.voices.length * (rh + gap) - gap;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  canvas.style.width = w + "px"; canvas.style.height = h + "px";
+  const g = canvas.getContext("2d");
+  g.scale(dpr, dpr);
+  g.fillStyle = css("--grid");
+  META.voices.forEach((v, k) => g.fillRect(0, k * (rh + gap), w, rh));
+  for (let b = 0; b <= r.beats; b++) {
+    g.fillStyle = b % r.bar_beats === 0 ? css("--bar") : css("--line");
+    g.fillRect(Math.min(b * spb * cw, w - 1), 0, 1, h);
+  }
+  const colors = { kick: css("--kick"), snare: css("--snare"), hats: css("--hats") };
+  META.voices.forEach((v, k) => {
+    g.fillStyle = colors[v] || css("--fg");
+    for (const s of r.hits[v] || []) g.fillRect(s * cw, k * (rh + gap) + 1, cw - 1, rh - 2);
+  });
+}
+
+function rowEl(r) {
+  const el = document.createElement("div");
+  el.className = "row" + (playingId === r.clip_id ? " playing" : "");
+  el.dataset.id = r.clip_id;
+  const perfPicked = DATA.some((o) => o.perf === r.perf && o.clip_id !== r.clip_id && picks[o.clip_id]);
+  el.innerHTML = `
+    <button class="play" title="Play / stop">${playingId === r.clip_id ? "■" : "▶"}</button>
+    <div class="gridwrap"><div>${META.voices.map((v) => `<span>${v[0].toUpperCase()}</span>`).join("")}</div><canvas></canvas></div>
+    <div class="info">
+      <div class="t">${r.perf} · bar ${r.start_bar + 1} · ${r.style}</div>
+      <div class="m">${r.bpm} BPM · <span class="badge">${feelOf(r)}</span><span class="badge">${density(r)}</span>triplet ${pct(tripShare(r))}% · loose ${pct(loose(r))}% ·
+        ${r.sounds} sounds · ${r.sounds_per_s}/s · fastest gap ${r.min_gap_ms ?? "–"} ms
+        ${perfPicked ? '<span class="badge warn" title="another bar of this performance is picked">same performance picked</span>' : ""}
+        ${r.same_pattern_clips > 1 ? `<span class="badge" title="this exact pattern appears ${r.same_pattern_clips} times in the test split">×${r.same_pattern_clips}</span>` : ""}
+      </div>
+    </div>
+    <div class="who">${MEMBERS.map((m) => `<button data-m="${m}" class="${(picks[r.clip_id] || "").includes(m) ? "on" : ""}" title="Member ${m} records this">${m}</button>`).join("")}</div>`;
+  drawGrid(el.querySelector("canvas"), r);
+  el.querySelector(".play").onclick = () => toggle(r);
+  el.querySelectorAll(".who button").forEach((b) => (b.onclick = () => pick(r, b.dataset.m)));
+  return el;
+}
+
+function render() {
+  const list = $("list");
+  list.replaceChildren(...rows.slice(0, shown).map(rowEl));
+  $("more").classList.toggle("hidden", shown >= rows.length);
+  $("count").textContent = `${rows.length} of ${DATA.length} loops match` + (shown < rows.length ? ` · showing ${shown}` : "");
+  summary();
+}
+
+function summary() {
+  const f = filters();
+  const chosen = DATA.filter((r) => picks[r.clip_id]);
+  const per = MEMBERS.map((m) => `<span>${m} <b>${chosen.filter((r) => picks[r.clip_id].includes(m)).length}</b>/${f.target}</span>`).join("");
+  const tally = (fn, keys) => keys.map((k) => `<span>${k} <b>${chosen.filter((r) => fn(r) === k).length}</b></span>`).join("");
+  const drummers = new Set(chosen.map((r) => r.drummer)).size;
+  const perfs = new Set(chosen.map((r) => r.perf)).size;
+  const bpms = chosen.map((r) => r.bpm);
+  $("summary").innerHTML = `
+    <div class="grp"><span class="lab">Per member</span>${per}</div>
+    <div class="grp"><span class="lab">Beats picked</span><span><b>${chosen.length}</b></span></div>
+    <div class="grp"><span class="lab">Feel</span>${tally(feelOf, ["straight", "swung"])}</div>
+    <div class="grp"><span class="lab">Density</span>${tally(density, ["sparse", "medium", "busy"])}</div>
+    <div class="grp"><span class="lab">Spread</span><span><b>${drummers}</b> drummers</span><span><b>${perfs}</b> performances</span>${bpms.length ? `<span><b>${Math.min(...bpms)}–${Math.max(...bpms)}</b> BPM</span>` : ""}</div>`;
+}
+
+function toggle(r) {
+  if (playingId === r.clip_id) { player.pause(); playingId = null; }
+  else { player.src = r.audio; player.currentTime = 0; player.play(); playingId = r.clip_id; }
+  render();
+}
+player.onended = () => { playingId = null; render(); };
+
+function pick(r, m) {
+  const cur = picks[r.clip_id] || "";
+  const next = cur.includes(m) ? cur.replace(m, "") : MEMBERS.filter((x) => cur.includes(x) || x === m).join("");
+  if (next) picks[r.clip_id] = next; else delete picks[r.clip_id];
+  saveState();
+  if ($("pickedOnly").checked && !next) apply(); else render();
+}
+
+function exportCsv() {
+  const cols = ["member", "pattern_id", "clip_id", "source_performance", "start_bar", "tempo_bpm", "style", "feel", "triplet_share", "loose_share", "density", "sounds", "sounds_per_s", "min_gap_ms"];
+  const lines = [cols.join(",")];
+  for (const m of MEMBERS)
+    for (const r of DATA.filter((r) => (picks[r.clip_id] || "").includes(m)))
+      lines.push([m, r.pattern_id, r.clip_id, r.perf, r.start_bar, r.bpm, r.style, feelOf(r), tripShare(r).toFixed(2), loose(r).toFixed(2), density(r), r.sounds, r.sounds_per_s, r.min_gap_ms ?? ""].join(","));
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([lines.join("\n") + "\n"], { type: "text/csv" }));
+  a.download = "recording_beats.csv";
+  a.click();
+}
+
+function importCsv(text) {
+  const [head, ...body] = text.trim().split(/\r?\n/);
+  const cols = head.split(",");
+  const mi = cols.indexOf("member"), ci = cols.indexOf("clip_id");
+  if (mi < 0 || ci < 0) { alert("The CSV needs member and clip_id columns."); return; }
+  const known = new Set(DATA.map((r) => r.clip_id));
+  const next = {};
+  let skipped = 0;
+  for (const line of body) {
+    const c = line.split(",");
+    if (!known.has(c[ci]) || !MEMBERS.includes(c[mi])) { skipped++; continue; }
+    next[c[ci]] = MEMBERS.filter((x) => (next[c[ci]] || "").includes(x) || x === c[mi]).join("");
+  }
+  picks = next;
+  if (skipped) alert(`${skipped} rows skipped (unknown clip or member).`);
+  apply();
+}
+
+async function main() {
+  const j = PAYLOAD;
+  DATA = j.rows; META = j.meta;
+  $("kit").textContent = META.kit;
+  shuffleRank = []; seededOrder(DATA.length).forEach((idx, rank) => (shuffleRank[idx] = rank));
+  const s = DATA.map((r) => r.sounds).sort((a, b) => a - b);
+  terciles = [s[Math.floor(s.length / 3)], s[Math.floor((2 * s.length) / 3)]];
+  for (const [id, key] of [["drummer", "drummer"], ["style", "style"]]) {
+    const counts = {};
+    DATA.forEach((r) => (counts[r[key]] = (counts[r[key]] || 0) + 1));
+    Object.keys(counts).sort().forEach((v) => $(id).insertAdjacentHTML("beforeend", `<option value="${v}">${v} (${counts[v]})</option>`));
+  }
+  const f = saved.filters || {};
+  for (const k of ["feel", "swingCut", "maxLoose", "density", "bpmMin", "bpmMax", "maxRate", "minGap", "drummer", "style", "sort", "target"])
+    if (f[k] !== undefined && f[k] !== null && !(typeof f[k] === "number" && isNaN(f[k]))) $(k).value = f[k];
+  $("pickedOnly").checked = !!f.pickedOnly; $("onePerPerf").checked = !!f.onePerPerf;
+  document.querySelectorAll(".controls input, .controls select").forEach((el) => el.addEventListener("change", apply));
+  $("more").onclick = () => { shown += PAGE; render(); };
+  $("export").onclick = exportCsv;
+  $("importBtn").onclick = () => $("importFile").click();
+  $("importFile").onchange = async (e) => { const file = e.target.files[0]; if (file) importCsv(await file.text()); e.target.value = ""; };
+  $("clear").onclick = () => { if (confirm("Clear every pick?")) { picks = {}; apply(); } };
+  apply();
+}
+main();
+</script>
+</body>
+</html>

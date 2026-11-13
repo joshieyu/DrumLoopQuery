@@ -78,6 +78,7 @@ These rules decide which loops count as a match. D builds the answer key from th
 | Count-ins and endings | Excluded | Excluded, start at first bar that has kick and snare; drop the last bar |
 | Spacing | — | A new loop every 2 bars (bars 1–2, 3–4, …), never overlapping |
 | Loops per performance | No limit, but duplicates removed | Yes, within one performance |
+| Clip audio | — | Every clip, library loop or fake beatbox, starts 0.25 s before its first downbeat and is cut at the end of its last bar with a 20 ms fade, so tails don't ring past the loop |
 
 ---
 
@@ -87,12 +88,21 @@ These rules decide which loops count as a match. D builds the answer key from th
 
 | Kit name | Type (acoustic / electronic / lo-fi / other) | Source and license | Train or test | Notes |
 |---|---|---|---|---|
-| | | | | |
+| AVL Black Pearl (`avl_black_pearl`) | acoustic | AVL Drumkits, Glen MacArthur; CC BY-SA 3.0 | train | Pearl kit |
+| AVL Red Zeppelin (`avl_red_zeppelin`) | acoustic | AVL Drumkits; CC BY-SA 3.0 | train | Ludwig kit, 26-inch kick |
+| AVL Blonde Bop (`avl_blonde_bop`) | acoustic | AVL Drumkits; CC BY-SA 3.0 | train | TAMA bop kit, sticks |
+| AVL Blonde Bop HR (`avl_blonde_bop_hr`) | acoustic | AVL Drumkits; CC BY-SA 3.0 | train | Same kit with Hot Rods; must stay on the same side as Blonde Bop |
+| DRSKit (`drskit`) | acoustic | DrumGizmo, SFZ port; CC BY 4.0 | train | |
+| MuldjordKit (`muldjordkit`) | acoustic | DrumGizmo, SFZ port; CC BY 4.0 | **test** | No rimshot or pedal-hat samples |
+| Salamander (`salamander`) | acoustic | Alexander Holm; CC BY-SA 3.0 (kinwie's SFZ mapping) | **test** | No rimshot samples |
+| Gogodze Phu Vol II (`gogodze_phu_vol_ii`) | lo-fi | Karoryfer; CC0 1.0 | not used | The sampler can't play it yet |
+
+DECISION (2026-11-09): the drafted note maps are kept for v0 and refined by ear after the presentation. A listen through all 7 kits on 2026-11-10 found no wrong articulations. Validation uses the training kits. Every kit in use is acoustic, so v0's kit-disjoint test is acoustic-to-acoustic only; electronic kits are later work.
 
 - **Aim:** a varied set, so the model can't identify a match just by kit sound. Hold out a few kits of each type for testing only.
 - **Kit sources:** DECISION: Freely licensed multisampled kits, rendered by a small Python sampler, are the backbone. Each kit's license is checked before use, and their audio may be released. A drum VST adds extra kits (good candidates for held-out test kits), rendered on A's Mac; its audio stays internal. E-GMD audio is optional later. A auditions the kits and assigns train/test here.
 - **Tempos:** default range 80–140 BPM. DECISION: Expand range to 70-160 bpm, remove performances outside
-- **Tempo change:** how far from its recorded tempo a loop may be rendered. DECISION: within ±20%, inside 70–160 BPM. Provisional: check one groove at ±10/20/30% by ear once a kit renders.
+- **Tempo change:** how far from its recorded tempo a loop may be rendered. DECISION: within ±20%, inside 70–160 BPM (provisional). For v0 (2026-11-09): every loop renders at its recorded tempo only; tempo changes come back after the presentation.
 - **Level balancing:** default is to loudness-normalize each rendered loop and check that hats are clearly audible in every kit. DECISION: Yes. 
 - **Velocity handling:** keep the performer's velocities, unless a kit has poor velocity layers. DECISION: Yes.
 - **Licensing:** if a kit comes from a commercial library, we release only MIDI and splits, never its rendered audio.
@@ -108,14 +118,17 @@ Real amateurs don't voice every hit. B's generator applies these rules before pl
 | Voices used | kick, snare, closed hi-hat, open hi-hat (the AVP sound types) | Yes |
 | Hits at the same moment | Voice only one sound, with priority **kick > snare > hats** | Yes |
 | Ghost notes | Never voiced | Skip snare hits below velocity **10**; kick and hats are always voiced. Snares down to 10 still sound intentional. The label already ignores hits below 15 (§2), so for now every labelled hit is voiced. |
-| Busy hats | If hats play 16ths, thin to 8ths with probability **0.5** | Yes |
+| Busy hats | If hats play 16ths, thin to 8ths with probability **0.5** | Yes. Per beat: a beat whose four straight 16ths all have hats gets one coin flip, and thinning removes its two off-8th hats. Other hat figures (triplets, partial 16ths) stay as played. |
 | Cymbals and toms | Never voiced | Yes |
 | Open hi-hat | Voice with the AVP open-hat sound | Yes |
 | Other hats hits | — | Closed, pedal, ride, and ride bell all use the AVP closed-hat sound |
+| Speed limit | — | DECISION (2026-11-11): nobody beatboxes as fast as a drummer plays. After the rules above, sounds are kept in priority order (kick, then snare, then hats; earlier first within a voice), and a sound is voiced only with at least its voice's gap from every sound already kept: **120 ms** for kick and snare, **250 ms** for hats, on the clean grid times. Chosen by ear from five versions. Before it, fake beatboxes ran at a median 5.9 sounds/s against real AVP improvisations' 2.7, with a quarter of gaps under 100 ms; with it, 3.4 sounds/s, the shortest gaps match AVP's (5th percentile about 130 ms), and 80% of kicks and snares are voiced. The 16th-hat thinning above rarely applies, because human timing seldom puts all four 16ths exactly on the grid. In B's full v0.7 build, 98% of the grooves' kicks, 60% of snares and only 10% of hats are voiced; 48% of queries whose groove has hats voice none, so fake beatboxes are 9% hats against about 38% in real AVP improvisations. Kept as is for v0 (2026-11-12). |
 
 **Mouth sounds:** use AVP's "personal" recordings first, where people chose their own sounds. DECISION: Use Personal and Fixed, both the single-sound takes and the improvisations (all 9,776 usable sounds). Each fake recording uses one participant's sounds from one mode.
 
-**Where a mouth sound ends:** AVP only marks where each sound starts. DECISION: A sound ends where its level falls 30 dB below its peak, at the next annotated sound, or after 500 ms, whichever comes first, then fades out over 10 ms. (Measured: the median sound decays 30 dB in 160–275 ms, and 29% of improvisation sounds are still ringing when the next one starts.)
+**Where a mouth sound ends:** AVP only marks where each sound starts. DECISION: A sound ends where its level falls 30 dB below its peak, at the next annotated sound, or after 500 ms, whichever comes first, then fades out over 10 ms. (Measured: the median sound decays 30 dB in 160–275 ms, and 29% of improvisation sounds are still ringing when the next one starts.) Approved by ear on 2026-11-09 as B built it: level measured on a 10 ms RMS envelope, with the fade inside the kept tail.
+
+**Sounds never overlap:** DECISION (2026-11-10): one mouth makes one sound at a time. In a fake query, each sound stops where the next sound actually played starts (after timing sloppiness; dropped hits don't count), fading out over the same 10 ms so the fade ends there. Letting tails ring under the next sound sounded very unnatural. (In B's v0.5 batch, 75% of neighbouring sounds overlapped, by a median of 106 ms.)
 
 ---
 
@@ -125,15 +138,17 @@ Each fake beatbox recording gets a random amount of each effect within these ran
 
 | Effect | Default range | What it models | DECISION |
 |---|---|---|---|
-| Steady rush or drag | −20 to +20 ms, same for the whole clip | Playing consistently ahead of or behind the beat | Yes (provisional) |
-| Per-hit timing wobble | 0 to 40 ms | Imprecise timing on individual hits | Yes (provisional) |
-| Tempo drift | 0 to 8% over the clip | Slowly speeding up or slowing down | Yes (provisional) |
+| Steady rush or drag | −20 to +20 ms, same for the whole clip | Playing consistently ahead of or behind the beat | Yes (approved by ear 2026-11-11) |
+| Per-hit timing wobble | 0 to 40 ms | Imprecise timing on individual hits | Yes (approved by ear 2026-11-11) |
+| Tempo drift | 0 to 8% over the clip | Slowly speeding up or slowing down | Off for v0 (2026-11-09); 0–8% (provisional) after the presentation |
 | Swing drift | small random change in swing amount per bar | Inconsistent swing feel | Off until A has listened |
-| Dropped hits | kick 0–0.05, snare 0–0.05, hats 0–0.4 probability | Forgetting or skipping hits | Yes (provisional) |
-| Background noise | 10 to 40 dB SNR | Room and laptop noise | Yes (provisional) |
+| Dropped hits | kick 0–0.05, snare 0–0.05, hats 0–0.4 probability | Forgetting or skipping hits | Yes (approved by ear 2026-11-11) |
+| Background noise | 10 to 40 dB SNR | Room and laptop noise | Yes (approved by ear 2026-11-11) |
 | Mic coloration | mild random EQ | Different laptop mics | Off until A has listened |
 
 These ranges are guesses. A should listen to a handful of fake recordings next to real AVP improvisations and adjust until they sound similar.
+
+DECISION (2026-11-11): A listened to each effect stepped across its range on the same fake beatboxes, next to real AVP, and kept all four ranges in use as they are for v0.
 
 ---
 
@@ -185,4 +200,8 @@ After the first version works, compare these rules against how the drummers in T
 |---|---|---|---|
 | 2026-10-20 | §1–4 decided (spec v0.2) | First version for the team call | Team call |
 | 2026-10-28 | Decided: exact matching; flam timing from the loudest hit; hits near a bar line join their nearest step's bar; a new loop every 2 bars; renders within ±20% of the recorded tempo; kit sources; §5 mouth-sound choice and cut-off, snares below velocity 10 not voiced (none reach the beatbox while the label floor is 15), other hats use the closed-hat sound; §5–7 defaults approved as provisional (spec v0.3) | B's questions; unblocks `clip_grid()`, the loop cutter, the beatbox generator, and D's answer key | B |
-| 2026-10-28 | Decided: flam runs merge as one hit; exact midpoints go to the simpler position (spec v0.4) | Tie-breaks needed to build `clip_grid()` | Not yet |
+| 2026-10-28 | Decided: flam runs merge as one hit; exact midpoints go to the simpler position (spec v0.4) | Tie-breaks needed to build `clip_grid()` | Team, week 3 handoff |
+| 2026-11-09 | Decided for v0 (spec v0.5): draft kit maps kept; test kits Salamander and MuldjordKit, the rest train, validation on training kits; recorded tempo only; clips start 0.25 s early and are cut at the end of the last bar with a 20 ms fade; AVP sound endings and per-beat hat thinning approved; tempo drift off; other §6 ranges stay provisional until A's listen on Nov 10 | Data handoff to C on Nov 11 for the class presentation | B, C, D |
+| 2026-11-10 | Decided (spec v0.6): mouth sounds never overlap; each is cut off at the next sound played (`beatbox.choke_at_next_sound`). Kit listen: no wrong articulations, so the note maps stand for v0 | A's listen to B's v0.5 batch; needed before the full generation | |
+| 2026-11-11 | Decided (spec v0.7): §6 sloppiness ranges kept as they are for v0; §5 speed limit (`beatbox.min_gap_ms`: kick and snare 120 ms, hats 250 ms) | Fake beatboxes were about twice as fast as real AVP and sounded impossible to beatbox | |
+| 2026-11-12 | Approved by ear: B's full v0.7 build (40,536 drum clips, 17,286 queries) is the v0 data freeze, spec unchanged. Known limitation kept for v0: the speed limit voices only 10% of the grooves' hats (§5) | Go/no-go listen to 33 query/drum pairs covering all 28 AVP participants and all 7 kits, each next to that person's real improvisation | |

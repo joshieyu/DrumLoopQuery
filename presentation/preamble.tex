@@ -1,0 +1,128 @@
+% ============================================================
+% presentation styling
+% ============================================================
+
+\usepackage[T1]{fontenc}
+\usepackage[sfdefault]{carlito}
+\renewcommand{\familydefault}{\sfdefault}
+
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{amsmath,amssymb,mathtools,bm}
+\usepackage{ragged2e}
+\usepackage{adjustbox}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,calc,fit,shapes.geometric}
+
+% UCF colors
+\definecolor{UCFGold}{HTML}{FFCA29}
+\definecolor{UCFBlack}{HTML}{231F20}
+\definecolor{SoftGray}{HTML}{666666}
+\definecolor{LightGray}{HTML}{F3F3F3}
+
+\setbeamercolor{normal text}{fg=black,bg=white}
+\setbeamercolor{frametitle}{fg=black,bg=white}
+\setbeamercolor{structure}{fg=UCFBlack}
+\setbeamercolor{itemize item}{fg=UCFGold}
+\setbeamercolor{itemize subitem}{fg=UCFGold}
+\setbeamercolor{enumerate item}{fg=UCFBlack}
+
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{headline}{}
+\setbeamertemplate{footline}{}
+
+\setbeamerfont{frametitle}{size=\LARGE,series=\bfseries}
+\setbeamerfont{normal text}{size=\normalsize}
+\setbeamersize{text margin left=0.72cm,text margin right=0.72cm}
+
+% --- UCF footer ---
+\setbeamercolor{ucffooter}{bg=UCFGold,fg=UCFBlack}
+\setbeamertemplate{footline}{%
+  \leavevmode%
+  \begin{beamercolorbox}[wd=\paperwidth,ht=0.27cm,dp=0cm]{ucffooter}%
+    \raisebox{0pt}[0pt][0pt]{%
+      \includegraphics[height=0.64cm]{assets/ucf_knight.png}%
+    }%
+    \hfill
+    % frame number, so slides can be referred to by number
+    \raisebox{0.06cm}{\scriptsize\insertframenumber}\hspace*{0.35cm}%
+  \end{beamercolorbox}%
+}
+
+% Who presents the current section, shown at the right of every slide title.
+% Usage: \presenter{Joshua} at the top of a section file.
+\newcommand{\thepresenter}{}
+\newcommand{\presenter}[1]{\renewcommand{\thepresenter}{#1}}
+
+% Slide titles positioning
+\setbeamertemplate{frametitle}{%
+  \vspace*{0.18cm}
+  \insertframetitle\hfill{\normalsize\mdseries\color{SoftGray}\thepresenter}\par
+  \vspace*{0.06cm}
+}
+
+% Section divider helper.
+% Usage: \sectiondivider{Motivation and Background}
+\newcommand{\sectiondivider}[1]{%
+  \begin{frame}
+    \vfill
+    \centering
+    {\fontsize{31}{36}\selectfont\bfseries #1\par}
+    \vfill
+  \end{frame}
+}
+
+% A callout box for main takeaways.
+% Usage: \begin{takeaway} ... \end{takeaway}
+% (The colour is set before the box opens; setting it inside had no effect.)
+\setbeamercolor{takeaway}{bg=LightGray,fg=black}
+\newenvironment{takeaway}
+  {\begin{beamercolorbox}[wd=\textwidth,sep=0.25cm,rounded=true]{takeaway}\justifying}
+  {\end{beamercolorbox}}
+
+% Source / citation line, right-aligned at the bottom of the slide (clear of the
+% UCF knight). It is part of the text flow, so content never runs underneath it.
+% Put it last in the frame (before any \note).
+% Usage: \slidesource{Honeybee (Cha et al., CVPR 2024)}
+\newcommand{\slidesource}[1]{%
+  \par\vskip 0pt plus 1filll
+  {\raggedleft\scriptsize\color{SoftGray}Source: #1\par}%
+}
+
+% One-line takeaway under a slide title: the point to get on first read.
+% Usage: \slidepoint{MoE adds parameters without adding compute per token.}
+\newcommand{\slidepoint}[1]{%
+  {\large\color{SoftGray}#1\par}\vspace{0.25cm}%
+}
+
+% Box marking the team's own reading, as opposed to the paper's claims.
+% Usage: \ourtake{...}
+\setbeamercolor{ourtake}{bg=UCFGold!22,fg=black}
+\newcommand{\ourtake}[1]{%
+  \begin{beamercolorbox}[wd=\textwidth,sep=0.16cm,rounded=true]{ourtake}
+    {\footnotesize\textbf{Our take:} #1\par}
+  \end{beamercolorbox}%
+}
+
+% Small gray label above a block of content.
+% Usage: \claimlabel{MM1's conclusions}
+\newcommand{\claimlabel}[1]{{\footnotesize\color{SoftGray}#1\par}}
+
+% A figure scaled to fit: never wider than the column, never taller than the given height.
+% Usage: \slidefig[5cm]{Table01.png}   (default height 5.2cm)
+\newcommand{\slidefig}[2][5.2cm]{%
+  {\centering\includegraphics[width=\linewidth,height=#1,keepaspectratio]{#2}\par}%
+}
+
+% Placeholders for the parts still to fill in. They print in red so nothing is missed.
+% Usage: \todo{final number of queries}    \figtodo[4cm]{training curve: loss and validation MRR}
+%        \tbd for a table cell with no number yet
+\newcommand{\todo}[1]{{\color{red}\textbf{[TODO: #1]}}}
+\newcommand{\tbd}{{\color{red}\textbf{?}}}
+\newcommand{\figtodo}[2][4.2cm]{%
+  {\centering\fcolorbox{red}{white}{\parbox[c][#1][c]{0.92\linewidth}{\centering\color{red}\textbf{Figure TODO:} #2}}\par}%
+}
+
+% Figure path.
+\graphicspath{{assets/}{figures/}}

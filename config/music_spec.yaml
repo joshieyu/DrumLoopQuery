@@ -7,7 +7,7 @@
 # When you change anything here, update docs/music_spec.md and its change log too,
 # and bump `version`.
 
-version: "0.4"
+version: "0.7"
 
 # Dotted keys the music lead has signed off on. Everything else is a default,
 # and `null` means the spec has no answer yet.
@@ -34,15 +34,20 @@ decided:
   - loops.hop_bars                              # 2026-10-28
   - loops.max_loops_per_performance
   - loops.remove_duplicates_within_performance
+  - loops.audio                                 # 2026-11-09
   - rendering.tempo_bpm
-  - rendering.max_tempo_change_pct              # 2026-10-28, check by ear once a kit renders
+  - rendering.max_tempo_change_pct              # 2026-11-09: recorded tempo only for v0
   - rendering.loudness_normalize
   - rendering.keep_performer_velocities
+  - rendering.kits                              # 2026-11-09: draft maps kept for v0; splits set; 2026-11-10: no wrong articulations heard
   # 2026-10-28: spec §5-7, provisional until the §9 listening checks.
+  # 2026-11-11: the sloppiness ranges below approved by ear for v0, as they are.
   - beatbox.avp_labels
   - beatbox.avp_modes
   - beatbox.avp_recordings
   - beatbox.sound_end
+  - beatbox.choke_at_next_sound                # 2026-11-10
+  - beatbox.min_gap_ms                         # 2026-11-11
   - beatbox.simultaneous_priority
   - beatbox.skip_velocity_below
   - beatbox.thin_16th_hats_to_8ths_prob
@@ -111,15 +116,25 @@ loops:
   hop_bars: 2                       # bars 1-2, 3-4, ...: loops never overlap
   max_loops_per_performance: null   # null = no limit
   remove_duplicates_within_performance: true
+  # Audio framing for every clip, library loops and fake beatbox queries alike: a lead-in
+  # before the first downbeat, then a cut at the end of the last bar with a short fade.
+  audio:
+    lead_in_s: 0.25                 # so hits played a little early aren't cut off
+    end: cut                        # cut: stop at the end of the last bar; ring: let tails decay
+    end_fade_ms: 20                 # fade-out at the cut
 
 # --- Spec §4: drum kits and rendering ------------------------------------------
 rendering:
   tempo_bpm: [70, 160]
-  max_tempo_change_pct: 20          # render within ±20% of the recorded tempo, inside tempo_bpm
+  # v0 (2026-11-09): every loop renders at its recorded tempo. ±20% (decided 2026-10-28,
+  # provisional) comes back after the class presentation, once checked by ear.
+  max_tempo_change_pct: 0
   loudness_normalize: true
   keep_performer_velocities: true
-  # Kits (spec §4). DRAFTS: each note_map was drafted on 2026-11-04 from the kit's sample
-  # names and still needs the music lead's ears, so rendering.kits stays undecided.
+  # Kits (spec §4). Each note_map was drafted on 2026-11-04 from the kit's sample names.
+  # 2026-11-09: the drafts are kept for v0 (refine by ear after the presentation), and
+  # splits are set: test = salamander, muldjordkit; train = drskit and the four AVL kits.
+  # Validation uses the training kits. split null = not used (gogodze can't render yet).
   # Paths are under data/raw/kits (python -m tools.download_datasets kits).
   # note_map takes every drum_map note, in this order:
   #   kick 36 | snare head 38, rimshot 40, cross-stick 37 | toms (head, rim) 48 50, 45 47,
@@ -132,7 +147,7 @@ rendering:
       type: acoustic
       program: "avl_black_pearl/BLACK_PEARL_2023_repack/Black_Pearl_2023_repack.sfz"
       samples: null
-      split: null
+      split: train
       controls: {}
       # Pearl kit. AVL kits have 2 toms (45, floor 41) with edge hits on 47 and 43, and
       # 46 is a semi-open hat.
@@ -144,7 +159,7 @@ rendering:
       type: acoustic
       program: "avl_red_zeppelin/RED_ZEPPELIN_2023_repack/Red_Zeppelin_2023_repack.sfz"
       samples: null
-      split: null
+      split: train
       controls: {}
       # Ludwig kit with a 26-inch kick; same layout as Black Pearl.
       note_map: {36: 36, 38: 38, 40: 40, 37: 37,
@@ -155,7 +170,7 @@ rendering:
       type: acoustic
       program: "avl_blonde_bop/BLONDE_BOP_SFZ/BLONDE_BOP.sfz"
       samples: null
-      split: null
+      split: train
       controls: {}
       # TAMA bop kit (18-inch kick, 10- and 14-inch toms) with sticks; same layout.
       note_map: {36: 36, 38: 38, 40: 40, 37: 37,
@@ -166,7 +181,7 @@ rendering:
       type: acoustic
       program: "avl_blonde_bop_hr/BLONDE_BOP_HR_SFZ/BLONDE_BOP_HR.sfz"
       samples: null
-      split: null
+      split: train
       controls: {}
       # Blonde Bop played with Hot Rods; same layout.
       note_map: {36: 36, 38: 38, 40: 40, 37: 37,
@@ -177,7 +192,7 @@ rendering:
       type: acoustic
       program: "drskit/DrumGizmo.DRSKit-b01448990a31f722542f1812e56159a97a6a2a82/DrumGizmo/DRSKit/Stereo/DrumGizmo DRSKit.sfz"
       samples: null
-      split: null
+      split: train
       controls: {}
       # Full program, whisker hits included. 37 is 'Snare_rim', 40 'Snare_rest' (which one
       # is the cross-stick is for your ears). Toms 47, 43, 41. Hats: 56 closed (tip), 42
@@ -191,7 +206,7 @@ rendering:
       type: acoustic
       program: "muldjordkit/DrumGizmo.MuldjordKit-fc165714974aa843125ce88597f341b31376e1d5/DrumGizmo/MuldjordKit/Stereo/DrumGizmo MuldjordKit.sfz"
       samples: null
-      split: null
+      split: test
       controls: {}
       # 4 toms (48, 47, 45, 41). 37 'SnareRest' is the only stick sound besides the head,
       # so the rimshot and cross-stick both use it. 46 is the only open-hat articulation;
@@ -204,7 +219,7 @@ rendering:
       type: acoustic
       program: "salamander_sfz/Salamander-Drumkit-9e9c9fca9f26e1763435beca4170505d0fa32fb0/Salamander Drumkit.sfz"
       samples: salamander
-      split: null
+      split: test
       controls: {}
       # kinwie's mapping of the original samples: 36 kick 2, 38 snare 2, 41 snare stick,
       # toms 45 (high) and 43 (low), ride 1 on 52 with its bell on 53, crashes 55 and 57.
@@ -238,8 +253,21 @@ beatbox:
   # under its peak, or at the next annotated sound if `stop_at_next_onset`, or after
   # `max_ms`, whichever comes first, then fades out over `fade_ms`.
   sound_end: {below_peak_db: 30, max_ms: 500, fade_ms: 10, stop_at_next_onset: true}
+  # One mouth makes one sound at a time (approved by ear 2026-11-10): in a fake query, each
+  # sound stops where the next sound actually played starts (after timing sloppiness;
+  # dropped hits don't count), fading out over `sound_end.fade_ms` so the fade ends there.
+  # A gap shorter than the fade fades over the whole gap. false lets tails overlap.
+  choke_at_next_sound: true
   simultaneous_priority: [kick, snare, hats]  # voice only the first of these
   skip_velocity_below: {kick: 0, snare: 10, hats: 0}  # labelled hits too soft to voice
+  # Speed limit (approved by ear 2026-11-11): nobody beatboxes as fast as a drummer plays.
+  # After every other rule here, sounds are kept in priority order (simultaneous_priority,
+  # earlier first within a voice): a sound is voiced only if it is at least its voice's
+  # gap from every sound already kept. Times are the clean grid times, before sloppiness.
+  # Real AVP improvisations: median 2.7 sounds/s, 5% of gaps under 131 ms.
+  min_gap_ms: {kick: 120, snare: 120, hats: 250}
+  # Per beat (approved 2026-11-09): a beat whose four straight 16ths all have hats gets one
+  # coin flip; on thinning, its two off-8th hats go. Other hat figures stay as played.
   thin_16th_hats_to_8ths_prob: 0.5
   voice_cymbals_and_toms: false
   open_hat_sound: hho               # for drum_map.hihat_open notes
@@ -250,7 +278,7 @@ beatbox:
 sloppiness:
   offset_ms: [-20, 20]              # steady rush or drag, same for the whole clip
   jitter_ms: [0, 40]                # per-hit timing wobble
-  tempo_drift_pct: [0, 8]           # over the clip
+  tempo_drift_pct: [0, 0]           # over the clip; off for v0 (2026-11-09), was [0, 8]
   swing_drift_per_bar: null         # spec says "small random change"; needs a number
   drop_prob:
     kick: [0, 0.05]

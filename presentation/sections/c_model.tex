@@ -1,0 +1,100 @@
+% ============================================================
+% C: Encoder and contrastive training   (Anika, ~2:00)
+% ============================================================
+% Scaffold: the facts below come from PR #1 (src/models/). Check them, replace
+% every red TODO, and swap the practice numbers for v0 numbers when you have them.
+\section{Method: Model}
+\presenter{Anika}
+
+\tikzset{
+  cbox/.style={draw=UCFBlack, rounded corners=3pt, fill=LightGray, minimum height=1.0cm,
+               align=center, font=\footnotesize, inner sep=4pt},
+  cplain/.style={cbox, fill=white},
+  chot/.style={cbox, fill=UCFGold!60},
+  carr/.style={-{Stealth[length=1.8mm]}, thick, UCFBlack},
+  cnote/.style={font=\scriptsize, text=SoftGray, align=center},
+}
+
+% ------------------------------------------------------------
+\begin{frame}{One encoder for loops and beatboxes}
+  \slidepoint{The same network embeds a drum loop and a beatbox, so ``same rhythm'' can become ``nearby vectors''.}
+
+  \centering
+  \begin{adjustbox}{max width=\textwidth}
+  \begin{tikzpicture}[node distance=0.55cm]
+    \node[cplain] (audio) {Audio\\{\scriptsize 22.05 kHz mono}};
+    \node[cbox, right=of audio] (fe) {Front-end\\{\scriptsize R1: 3-band onsets}\\{\scriptsize R3: 64-bin log-mel}};
+    \node[cbox, right=of fe] (conv) {Stride-2 conv\\{\scriptsize $\sim$20 ms tokens}};
+    \node[chot, right=of conv] (tf) {4-layer\\Transformer\\{\scriptsize $d=128$}};
+    \node[cbox, right=of tf] (pool) {Attention\\pooling};
+    \node[cplain, right=of pool] (out) {128-d\\unit vector};
+    \node[cplain, above=0.45cm of conv, font=\scriptsize] (kind) {kind token:\\library / beatbox / tap};
+    \draw[carr] (audio) -- (fe); \draw[carr] (fe) -- (conv); \draw[carr] (conv) -- (tf);
+    \draw[carr] (tf) -- (pool); \draw[carr] (pool) -- (out);
+    \draw[carr] (kind.east) -| (tf.north);
+    \node[cnote, below=0.15cm of tf] {weights shared by\\queries and loops};
+  \end{tikzpicture}
+  \end{adjustbox}
+
+  \vspace{0.35cm}
+  \raggedright
+  \begin{itemize}
+    \item About 550k parameters; trains on one GPU \todo{training time on v0 data}.
+    \item Front-ends compared in experiment E2: R1 is timbre-light by design, R3 is a generic spectrogram.
+          \todo{which front-end(s) the results use}
+  \end{itemize}
+
+  \note{
+    \todo{C: speaker notes.}
+  }
+\end{frame}
+
+% ------------------------------------------------------------
+\begin{frame}{Contrastive training}
+  \slidepoint{Clips of the same pattern are pulled together, whatever kit or voice plays them; other patterns are pushed apart.}
+
+  \begin{columns}[T,onlytextwidth]
+    \column{0.48\textwidth}
+      \begin{itemize}
+        \item \textbf{Supervised contrastive loss} (SupCon): the class is the pattern ID.
+        \item \textbf{Batches} of $P$ patterns $\times$ $K$ views: different kits, different voices, different sloppiness.
+              \todo{$P$, $K$, batch size}
+        \item AdamW, cosine learning-rate decay, gradient clipping (some seeds collapsed without it).
+        \item Validation MRR every epoch; the best checkpoint is kept.
+      \end{itemize}
+    \column{0.48\textwidth}
+      \figtodo[4.8cm]{training curve: loss and validation MRR per epoch, on the v0 data}
+  \end{columns}
+
+  \note{
+    \todo{C: speaker notes.}
+  }
+\end{frame}
+
+% ------------------------------------------------------------
+\begin{frame}{First check: the pipeline works}
+  \slidepoint{On practice data, the encoder ranks the right loop far above chance.}
+
+  \centering
+  \begin{tabular}{lcccc}
+    \toprule
+    Front-end & MRR (95\% CI) & Hit@1 & Hit@5 & Hit@10 \\
+    \midrule
+    chance & 0.052 & & & \\
+    R1: 3-band onsets & 0.373 (0.325--0.424) & 0.22 & 0.52 & 0.74 \\
+    R3: log-mel & 0.793 (0.751--0.834) & 0.66 & 0.96 & 0.99 \\
+    \bottomrule
+  \end{tabular}
+
+  \vspace{0.4cm}
+  \raggedright\small
+  \begin{itemize}
+    \item Practice set: 100 test loops, 200 queries. The ``queries'' were the same loops on a second drum kit,
+          not beatboxes, so R3 can partly match by sound. It shows the pipeline works; it doesn't settle R1 vs.\ R3.
+    \item \todo{replace with, or add, the v0 numbers on fake beatbox queries}
+  \end{itemize}
+
+  \note{
+    \todo{C: speaker notes.}
+  }
+\end{frame}

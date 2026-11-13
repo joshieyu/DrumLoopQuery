@@ -37,10 +37,12 @@ def test_catalog_preserves_splits_and_reports_conflicts(tmp_path):
     pd.DataFrame(rows).to_csv(root / "info.csv", index=False)
     out = tmp_path / "out"
     summary = catalog_gmd(root, out)
-    assert summary["clips"] == 2
+    assert summary["clips"] == 1
     assert summary["failed_performances"] == 0
-    assert summary["patterns_shared_across_splits"] == 1
-    conflicts = pd.read_csv(out / "split_conflicts.csv")
+    assert summary["original_patterns_shared_across_splits"] == 1
+    assert summary["patterns_shared_across_splits"] == 0
+    assert summary["removed_cross_split_clips"] == 1
+    conflicts = pd.read_csv(out / "original_split_clashes.csv")
     assert set(conflicts.split) == {"train", "test"}
     record = json.loads((out / "loops.jsonl").read_text().splitlines()[0])
     notes = [Note(**n) for n in record["notes"]]
