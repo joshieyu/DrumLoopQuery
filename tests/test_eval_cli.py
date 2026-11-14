@@ -11,7 +11,16 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
-@pytest.mark.parametrize("module", ["src.eval.evaluate", "src.eval.relevance"])
+@pytest.mark.parametrize(
+    "module",
+    [
+        "src.eval.evaluate",
+        "src.eval.relevance",
+        "src.eval.check_manifests",
+        "src.eval.sanity_check",
+        "src.eval.clap_baseline",
+    ],
+)
 def test_help_runs(module):
     result = subprocess.run(
         [sys.executable, "-m", module, "--help"],
