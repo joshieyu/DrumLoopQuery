@@ -1,0 +1,60 @@
+# Member C's model settings (README §6). Load through src/models/config.py.
+#
+# Technical choices only: audio rate, frame size, feature bands, model size, loss.
+# Every musical constant (grid, tempos, voices, what counts as the same rhythm) lives
+# in config/music_spec.yaml and is read through src.music.spec.load_spec().
+
+version: "0.1"
+
+# Every clip is mixed to mono and resampled to this rate before any feature.
+audio:
+  sample_rate: 22050   # Hz; keeps content up to ~11 kHz, enough for hi-hats
+  n_fft: 1024          # STFT window, ~46 ms
+  hop_length: 220      # one frame every ~10 ms (100.2 frames per second)
+
+features:
+  # R1: 3-band onset envelopes. The bands are [0, 200), [200, 5000), [5000, Nyquist) Hz,
+  # roughly where kick, snare, and hat energy sits; the model doesn't rely on that.
+  r1:
+    band_edges_hz: [200, 5000]
+    dynamic_range_db: 80   # band energy floor, below the clip's loudest band-frame
+    onset_db_scale: 20     # a 20 dB rise from one frame to the next reads as 1.0
+
+  # R3: log-mel spectrogram, in dB relative to the clip's loudest bin, scaled to [0, 1].
+  r3:
+    n_mels: 64
+    fmin_hz: 20
+    fmax_hz: null          # null = Nyquist
+    dynamic_range_db: 80
+
+# The shared encoder: 4-layer Transformer, width 128, 128-d output of length 1.
+encoder:
+  # A strided convolution merges every frame_stride frames into one token (2: one token
+  # per ~20 ms, finer than the shortest grid step, 31 ms at 160 BPM). One token per
+  # frame made training ~50x slower (~230 s per epoch on the practice data).
+  frame_stride: 2
+  d_model: 128
+  n_layers: 4
+  n_heads: 4
+  ff_dim: 256
+  dropout: 0.1
+  embed_dim: 128
+
+# Supervised contrastive loss (Khosla et al. 2020); class = pattern ID.
+loss:
+  name: supcon
+  temperature: 0.1
+
+# Training (src/models/train.py). A batch holds batch_patterns patterns with
+# views_per_pattern versions each (kits, voices, sloppiness), so every clip has positives.
+training:
+  batch_patterns: 32
+  views_per_pattern: 3
+  # A pattern with queries puts at least this many in (plus at least one library loop),
+  # so batches pair queries with loops, the actual retrieval task. 0: views at random.
+  min_query_views: 1
+  learning_rate: 3.0e-4
+  weight_decay: 0.01
+  epochs: 30
+  max_grad_norm: 1.0     # clip large gradients; without it some seeds collapse
+  seed: 0
