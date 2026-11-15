@@ -196,3 +196,33 @@ def test_pool_kits_errors_are_clear(library):
     with_kits = library.assign(kit_id="salamander")
     with pytest.raises(EvalError, match="no 'test' clips on kits"):
         build_relevance(with_kits, queries, pool_kits=["muldjordkit"])
+
+
+def test_relevance_key_matches_a_tap_on_its_source_pattern(library):
+    ## a human tap has no usable dualized id, so it is matched on the source loop's pattern id
+    queries = _queries([("ttd1", "A", None, "tap", "taptamdrum", "test")]).assign(
+        relevance_key="pattern_id"
+    )
+    relevance, report = build_relevance(library, queries)
+    assert relevance == {"ttd1": ["a_kit1", "a_kit2"]}
+    assert report["by_testset"]["tap/taptamdrum"]["n_scoreable"] == 1
+
+
+def test_relevance_key_is_optional_per_row(library):
+    queries = _queries(
+        [
+            ("synthetic_tap", "A", "T1", "tap", "synthetic", "test"),
+            ("ttd1", "A", None, "tap", "taptamdrum", "test"),
+        ]
+    ).assign(relevance_key=[None, "pattern_id"])
+    relevance, _ = build_relevance(library, queries)
+    assert relevance["synthetic_tap"] == ["a_kit1", "a_kit2", "b_kit1"]  # by dualized id
+    assert relevance["ttd1"] == ["a_kit1", "a_kit2"]  # by pattern id
+
+
+def test_unknown_relevance_key_is_an_error(library):
+    queries = _queries([("q1", "A", "T1", "tap", "synthetic", "test")]).assign(
+        relevance_key="clip_id"
+    )
+    with pytest.raises(EvalError, match="relevance_key"):
+        build_relevance(library, queries)

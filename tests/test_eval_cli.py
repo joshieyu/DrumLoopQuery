@@ -19,6 +19,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
         "src.eval.check_manifests",
         "src.eval.sanity_check",
         "src.eval.clap_baseline",
+        "src.eval.ttd_prep",
     ],
 )
 def test_help_runs(module):

@@ -10,6 +10,7 @@ from src.eval.evaluate import EvalError, load_relevance
 from src.eval.relevance import read_manifest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+TIMING_COLUMNS = ("tempo_bpm", "duration_s")
 
 
 @dataclass(frozen=True)
@@ -25,9 +26,12 @@ def load_pool(
     relevance_path: str | Path,
     pool_split: str = "test",
     pool_kits: Sequence[str] | None = None,
+    timing: bool = False,
 ) -> Pool:
     relevance = load_relevance(relevance_path)
-    required = ("clip_id", "split", "audio_path", *(("kit_id",) if pool_kits else ()))
+    ## systems that cut each clip to its loop need the tempo and the length of the audio
+    extra = TIMING_COLUMNS if timing else ()
+    required = ("clip_id", "split", "audio_path", *extra, *(("kit_id",) if pool_kits else ()))
     library = read_manifest(library_path, required)
     library = library[library["split"] == pool_split]
     if pool_kits:
@@ -37,7 +41,7 @@ def load_pool(
     if library["audio_path"].isna().any():
         raise EvalError("some pool clips have no audio_path")
 
-    queries = read_manifest(queries_path, ("query_id", "audio_path"))
+    queries = read_manifest(queries_path, ("query_id", "audio_path", *extra))
     absent = sorted(set(relevance) - set(queries["query_id"]))
     if absent:
         raise EvalError(
@@ -54,7 +58,18 @@ def load_pool(
             f"{len(outside)} relevant clips are not in the pool, e.g. {sorted(outside)[:3]}"
         )
 
+    library = _numeric(library[["clip_id", "audio_path", *extra]], extra, "library")
+    queries = _numeric(queries[["query_id", "audio_path", *extra]], extra, "query")
     return Pool(
-        library=library[["clip_id", "audio_path"]].sort_values("clip_id").reset_index(drop=True),
-        queries=queries[["query_id", "audio_path"]].sort_values("query_id").reset_index(drop=True),
+        library=library.sort_values("clip_id").reset_index(drop=True),
+        queries=queries.sort_values("query_id").reset_index(drop=True),
     )
+
+
+def _numeric(frame: pd.DataFrame, columns: Sequence[str], name: str) -> pd.DataFrame:
+    frame = frame.copy()
+    for column in columns:
+        frame[column] = pd.to_numeric(frame[column], errors="coerce")
+        if frame[column].isna().any() or (frame[column] <= 0).any():
+            raise EvalError(f"{name} manifest: '{column}' must be a positive number in every row")
+    return frame

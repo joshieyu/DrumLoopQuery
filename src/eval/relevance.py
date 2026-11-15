@@ -47,7 +47,6 @@ QUERY_COLUMNS = (
 
 ## reading
 
-
 def read_manifest(path: str | Path, required: tuple[str, ...]) -> pd.DataFrame:
     """Read a manifest as text. Only an empty cell is null; whitespace is stripped."""
     frame = pd.read_csv(path, dtype=str, keep_default_na=False, na_values=[""])
@@ -84,10 +83,15 @@ def _check_queries(queries: pd.DataFrame) -> None:
     unknown = sorted(set(queries["query_type"]) - set(ID_COLUMN))
     if unknown:
         raise EvalError(f"query manifest: query_type must be beatbox or tap, got {unknown}")
+    ## an optional relevance_key column overrides which id a query is matched on
+    if "relevance_key" in queries.columns:
+        allowed = sorted(set(ID_COLUMN.values()))
+        bad = sorted(set(queries["relevance_key"].dropna()) - set(allowed))
+        if bad:
+            raise EvalError(f"query manifest: relevance_key must be one of {allowed}, got {bad}")
 
 
-## building
-
+## Building the answer key
 
 def build_relevance(
     library: pd.DataFrame,
@@ -130,6 +134,10 @@ def build_relevance(
     groups: dict[str, dict] = {}
     for query in chosen.itertuples():
         key = ID_COLUMN[query.query_type]
+        ## TapTamDrum taps are matched on their source loop's pattern_id, not on a tap grid
+        override = getattr(query, "relevance_key", None)
+        if override is not None and not pd.isna(override):
+            key = override
         group = groups.setdefault(
             f"{query.query_type}/{query.source}",
             {
@@ -173,13 +181,14 @@ def build_relevance(
         "queries_in_manifest": len(queries),
         "queries_in_other_splits_ignored": len(queries) - len(chosen),
         "queries_with_answers": len(relevance),
-        ## Test patterns that also appear in a non-pool split: leakage to decide on.
+        # Test patterns that also appear in a non-pool split: leakage to decide on.
         "pool_patterns_shared_with_other_splits": len(shared),
         "by_testset": dict(sorted(groups.items())),
     }
     return dict(sorted(relevance.items())), report
 
 
+## writing
 def write_relevance(relevance: dict[str, list[str]], path: str | Path) -> None:
     """Write one line per query, so the file is readable and diffs well."""
     lines = [
@@ -189,9 +198,8 @@ def write_relevance(relevance: dict[str, list[str]], path: str | Path) -> None:
     Path(path).write_text("{\n" + ",\n".join(lines) + "\n}\n" if lines else "{}\n")
 
 
-## command line
 
-
+## Command-line interface
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Build the answer key (relevance.json) from the manifests and the spec."
