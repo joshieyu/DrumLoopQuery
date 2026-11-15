@@ -21,6 +21,7 @@ from src.models.data import LIBRARY_COLUMNS, QUERY_COLUMNS, FeatureCache, load_c
 from src.models.embed import embed_clips, library_kits, load_run, scoring_sets  # noqa: E402
 from src.models.export import write_embeddings  # noqa: E402
 from src.models.plot_curves import plot_runs  # noqa: E402
+from src.models.plot_frontends import load_mrr, plot_frontends  # noqa: E402
 from src.models.train import train, training_sets  # noqa: E402
 from src.music.spec import load_spec  # noqa: E402
 
@@ -179,6 +180,20 @@ def test_cross_kit_fallback(dataset):
     assert key == {f"L{p}@{TEST_KIT}": [f"L{p}@{TRAIN_KIT}"] for p in (9, 10, 11)}
 
 
+def test_real_and_fake_queries_are_scored_separately(dataset):
+    clips = clips_of(dataset)
+    real = (clips.kind != "library") & (clips.split == "test") & clips.id.str.endswith("_1")
+    clips.loc[real, "source"] = "team"  # one of each test pattern's two queries is "recorded"
+    with pytest.raises(ValueError, match="never pooled"):
+        scoring_sets(clips, HELD_OUT, "test", "test")
+    team, library, _ = scoring_sets(clips, HELD_OUT, "test", "test", query_source="team")
+    fake, _, _ = scoring_sets(clips, HELD_OUT, "test", "test", query_source="synthetic")
+    assert set(team.source) == {"team"} and set(fake.source) == {"synthetic"}
+    assert len(team) == len(fake) == 3 and set(library.group) == {TEST_KIT}
+    with pytest.raises(ValueError, match="no test queries with source 'tap'"):
+        scoring_sets(clips, HELD_OUT, "test", "test", query_source="tap")
+
+
 def test_library_kits_falls_back_when_none_are_held_out():
     messages = []
     nothing_held_out = spec_with_kit_splits({TRAIN_KIT: "train", TEST_KIT: "train"})
@@ -210,3 +225,33 @@ def test_reloaded_model_matches_and_curves_plot(dataset, tmp_path):
     )
     png = plot_runs([run], tmp_path / "curves.png", title="test")
     assert png.exists() and png.stat().st_size > 10_000
+    pdf = plot_runs([run, run], tmp_path / "slide.pdf", labels=["R1", "R3"], stacked=True)
+    assert pdf.read_bytes().startswith(b"%PDF")
+    with pytest.raises(ValueError, match="one label per run"):
+        plot_runs([run], tmp_path / "x.png", labels=["a", "b"])
+
+
+def test_frontend_chart_skips_test_sets_without_results(tmp_path):
+    def summary(system, testset, mrr):
+        folder = tmp_path / f"{system}_{testset}"
+        folder.mkdir()
+        metric = {"mean": mrr, "ci_low": mrr - 0.02, "ci_high": mrr + 0.02}
+        chance = {"mean": 0.01, "ci_low": 0.01, "ci_high": 0.01}
+        body = {"n_queries_scored": 50, "metrics": {"mrr": metric, "chance_mrr": chance}}
+        (folder / "summary.json").write_text(json.dumps(body))
+
+    summary("r1", "fake", 0.3)
+    summary("r3", "fake", 0.28)
+    notes = []
+    out = plot_frontends(
+        [("r1", "R1"), ("r3", "R3")],
+        [("fake", "Fake beatbox"), ("real", "Real beatbox")],
+        tmp_path / "frontends.pdf",
+        eval_dir=tmp_path,
+        log=notes.append,
+    )
+    assert out.read_bytes().startswith(b"%PDF")
+    assert notes == ["note: no results yet for test set 'real'; left out"]
+    assert load_mrr(tmp_path, "r1", "fake")["mrr"] == 0.3
+    with pytest.raises(ValueError, match="no results found"):
+        plot_frontends([("r1", "R1")], [("real", "Real")], tmp_path / "x.pdf", eval_dir=tmp_path)

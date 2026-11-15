@@ -18,6 +18,17 @@ The library is the split's loops on the kits the music spec holds out for testin
 If the spec holds no kit out yet (as with the practice data), every kit is used and a
 warning says so. --library-kits all, or a comma-separated list, overrides that.
 
+Test sets are scored separately, never pooled (README §8). Once the team's real
+recordings are in the query manifest (source "team"), score each source on its own:
+
+    .venv/bin/python -m src.models.embed --run results/runs/r1_v07 \
+        --library manifests/library_manifest.csv --queries manifests/query_manifest.csv \
+        --relevance manifests/relevance.json --query-source team \
+        --system r1_v07 --testset team_beatbox
+
+and --query-source synthetic for the fake beatboxes. Confidence intervals resample whole
+speakers, as D's command line does with --query-manifest.
+
 Cross-kit fallback (Joshua's presentation plan, if the beatbox generator is late):
 --query-kit K uses the split's loops on kit K as the queries and its loops on the
 other library kits as the library. The answer key then comes from the same-rhythm rule
@@ -150,18 +161,35 @@ def scoring_sets(
     split: str,
     kits: str | list[str],
     query_kit: str | None = None,
+    query_source: str | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, list[str]] | None]:
     """(queries, library, answer key or None) for one split.
 
     Normal mode: the split's queries against its loops on `kits`; the answer key is D's
-    relevance.json (None here). Cross-kit mode (`query_kit`): the split's loops on that
-    kit are the queries, its loops on the other `kits` the library, and the answer key
-    comes from the same-rhythm rule.
+    relevance.json (None here). Test sets are never pooled (README §8), so when the
+    split has queries from more than one source (synthetic, team, ...), `query_source`
+    must pick one. Cross-kit mode (`query_kit`): the split's loops on that kit are the
+    queries, its loops on the other `kits` the library, and the answer key comes from
+    the same-rhythm rule.
     """
     rows = select(clips, split, spec, kits)
     library = rows[rows.kind == "library"]
+    if query_kit is not None and query_source is not None:
+        raise ValueError("query_source applies to real queries, not to the cross-kit mode")
     if query_kit is None:
         queries = rows[rows.kind != "library"]
+        sources = sorted(queries.source.unique())
+        if query_source is not None:
+            queries = queries[queries.source == query_source]
+            if queries.empty:
+                raise ValueError(
+                    f"no {split} queries with source {query_source!r}; found {sources}"
+                )
+        elif len(sources) > 1:
+            raise ValueError(
+                f"the {split} split has queries from {sources}; score one source at a "
+                "time (test sets are never pooled), e.g. --query-source synthetic"
+            )
         answer_key = None
     else:
         everything = select(clips, split, spec, "all")
@@ -187,6 +215,10 @@ def main(argv: list[str] | None = None) -> None:
         "--library-kits", default="test", help="test (held-out kits), all, or kit_a,kit_b"
     )
     parser.add_argument("--query-kit", help="cross-kit fallback: this kit's loops are the queries")
+    parser.add_argument(
+        "--query-source",
+        help="score only queries from this source: synthetic, team, ... (needed when mixed)",
+    )
     parser.add_argument("--system", required=True, help="e.g. r1_practice")
     parser.add_argument("--testset", required=True, help="e.g. practice_test")
     parser.add_argument("--device", default="auto")
@@ -201,7 +233,9 @@ def main(argv: list[str] | None = None) -> None:
     model, cfg, front_end, ckpt = load_run(args.run, args.which, device)
     clips = load_clips(args.library, args.queries, args.audio_root)
     kits = library_kits(spec, args.library_kits)
-    queries, library, answer_key = scoring_sets(clips, spec, args.split, kits, args.query_kit)
+    queries, library, answer_key = scoring_sets(
+        clips, spec, args.split, kits, args.query_kit, args.query_source
+    )
     print(
         f"scoring {len(queries)} queries against {len(library)} loops on kits "
         f"{sorted(library.group.unique())}"
@@ -222,7 +256,11 @@ def main(argv: list[str] | None = None) -> None:
     else:
         (out / "relevance.json").write_text(json.dumps(answer_key, indent=1) + "\n")
     table, counts = evaluate(path, answer_key)
-    summary = summarize(table, n_boot=args.n_boot)
+    # Like D's command line with --query-manifest: the bootstrap resamples whole speakers,
+    # since one person's queries aren't independent. Loops-as-queries count one by one.
+    speaker = dict(zip(queries.id, queries.group, strict=True)) if args.query_kit is None else {}
+    groups = [speaker.get(q) or q for q in table.query_id]
+    summary = summarize(table, groups=groups, n_boot=args.n_boot)
     table.to_csv(out / "per_query.csv", index=False)
     result = {
         "system_file": str(path),
@@ -231,6 +269,8 @@ def main(argv: list[str] | None = None) -> None:
         "split": args.split,
         "library_kits": sorted(library.group.unique()),
         "query_kit": args.query_kit,
+        "query_source": args.query_source,
+        "bootstrap": "resamples speakers" if args.query_kit is None else "resamples queries",
         "answer_key": str(args.relevance) if args.relevance else "same-rhythm rule (cross-kit)",
         **counts,
         "metrics": summary,
