@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from src.eval.evaluate import (
     EvalError,
+    _groups_from_manifest,
     bootstrap_ci,
     chance_rr,
     evaluate,
@@ -167,3 +169,13 @@ def test_summary_reports_every_metric(tmp_path):
     summary = summarize(table, n_boot=200)
     assert {"mrr", "map", "hit@1", "hit@5", "hit@10", "chance_mrr"} <= set(summary)
     assert summary["mrr"]["mean"] == 1.0
+
+
+def test_groups_come_from_the_chosen_manifest_column(tmp_path):
+    manifest = tmp_path / "q.csv"
+    manifest.write_text("query_id,participant_id,pattern_id\nq1,P1,A\nq2,P1,B\nq3,,B\n")
+    ids = pd.Series(["q1", "q2", "q3", "q4"])
+    assert _groups_from_manifest(ids, manifest) == ["P1", "P1", "q3", "q4"]
+    assert _groups_from_manifest(ids, manifest, "pattern_id") == ["A", "B", "B", "q4"]
+    with pytest.raises(EvalError, match="needs query_id and nope"):
+        _groups_from_manifest(ids, manifest, "nope")

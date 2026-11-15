@@ -49,7 +49,9 @@ def load_pool(
         )
     queries = queries[queries["query_id"].isin(relevance)]
     if queries["audio_path"].isna().any():
-        raise EvalError("some answer-key queries have no audio_path")
+        raise EvalError(
+            "some answer-key queries have no audio_path (TapTamDrum taps need src.eval.ttd_render first)"
+        )
 
     ## every clip the answer key calls relevant must be a candidate
     outside = {c for clips in relevance.values() for c in clips} - set(library["clip_id"])

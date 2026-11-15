@@ -46,15 +46,15 @@ import pandas as pd
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_KS = (1, 5, 10)
-NORM_TOLERANCE = 1e-3  ## how far from 1.0 an embedding's length may be
-BOOT_CHUNK = 500  ## bootstrap resamples drawn at a time, to bound memory
+NORM_TOLERANCE = 1e-3  # how far from 1.0 an embedding's length may be
+BOOT_CHUNK = 500  # bootstrap resamples drawn at a time, to bound memory
 
 
 class EvalError(ValueError):
-    """An input file is malformed or doesn't match the answer key.""" ## DON"T REMOVE THIS!!!!!!!! 
+    """An input file is malformed or doesn't match the answer key."""
 
 
-## 
+# --------------------------------------------------------------------------- loading
 
 
 def load_system(path: str | Path) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -136,7 +136,7 @@ def relevant_indices(
     return out
 
 
-## metrics
+# --------------------------------------------------------------------------- metrics
 
 
 def rank_relevant(scores_row: np.ndarray, relevant_idx: np.ndarray) -> np.ndarray:
@@ -206,7 +206,7 @@ def evaluate(
     return table, counts
 
 
-## statistics
+# --------------------------------------------------------------------------- statistics
 
 
 def bootstrap_ci(
@@ -261,15 +261,17 @@ def summarize(
     return summary
 
 
-## command line
+# --------------------------------------------------------------------------- command line
 
 
-def _groups_from_manifest(query_ids: pd.Series, manifest_path: Path) -> list[str]:
-    """participant_id for each scored query; a query with none counts as its own group."""
+def _groups_from_manifest(
+    query_ids: pd.Series, manifest_path: Path, column: str = "participant_id"
+) -> list[str]:
+    ## the group of each scored query; a query with no value counts as its own group
     manifest = pd.read_csv(manifest_path, dtype=str)
-    if not {"query_id", "participant_id"} <= set(manifest.columns):
-        raise EvalError(f"{manifest_path}: needs query_id and participant_id columns")
-    owner = manifest.set_index("query_id")["participant_id"]
+    if not {"query_id", column} <= set(manifest.columns):
+        raise EvalError(f"{manifest_path}: needs query_id and {column} columns")
+    owner = manifest.set_index("query_id")[column]
     mapped = query_ids.map(owner)
     return mapped.fillna(query_ids).tolist()
 
@@ -284,7 +286,12 @@ def main() -> None:
     parser.add_argument(
         "--query-manifest",
         type=Path,
-        help="query_manifest.csv; if given, the bootstrap resamples participants",
+        help="query manifest; if given, the bootstrap resamples whole groups of queries",
+    )
+    parser.add_argument(
+        "--group-column",
+        default="participant_id",
+        help="manifest column that defines a group, e.g. pattern_id for taps from one source loop",
     )
     parser.add_argument("--n-boot", type=int, default=10_000)
     parser.add_argument("--seed", type=int, default=0)
@@ -292,7 +299,7 @@ def main() -> None:
     try:
         table, counts = evaluate(args.system, load_relevance(args.relevance))
         groups = (
-            _groups_from_manifest(table["query_id"], args.query_manifest)
+            _groups_from_manifest(table["query_id"], args.query_manifest, args.group_column)
             if args.query_manifest
             else None
         )
@@ -303,7 +310,7 @@ def main() -> None:
         "system_file": str(args.system),
         **counts,
         "bootstrap": {
-            "resampled": "participants" if groups is not None else "queries",
+            "resampled": args.group_column if groups is not None else "queries",
             "n_boot": args.n_boot,
             "seed": args.seed,
         },

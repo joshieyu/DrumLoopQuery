@@ -20,6 +20,8 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
         "src.eval.sanity_check",
         "src.eval.clap_baseline",
         "src.eval.ttd_prep",
+        "src.eval.onset_baseline",
+        "src.eval.ttd_render",
     ],
 )
 def test_help_runs(module):
