@@ -22,6 +22,7 @@ from src.models.embed import embed_clips, library_kits, load_run, scoring_sets  
 from src.models.export import write_embeddings  # noqa: E402
 from src.models.plot_curves import plot_runs  # noqa: E402
 from src.models.plot_frontends import load_mrr, plot_frontends  # noqa: E402
+from src.models.plot_inputs import beat_times, plot_inputs  # noqa: E402
 from src.models.train import train, training_sets  # noqa: E402
 from src.music.spec import load_spec  # noqa: E402
 
@@ -229,6 +230,23 @@ def test_reloaded_model_matches_and_curves_plot(dataset, tmp_path):
     assert pdf.read_bytes().startswith(b"%PDF")
     with pytest.raises(ValueError, match="one label per run"):
         plot_runs([run], tmp_path / "x.png", labels=["a", "b"])
+
+
+def test_inputs_figure_draws_both_front_ends(tmp_path):
+    times = [0.25, 0.75, 1.25, 1.75]
+    paths = []
+    for name, freq in (("query", 3000), ("loop", 60)):
+        paths.append(tmp_path / f"{name}.wav")
+        sf.write(paths[-1], hits_audio(times, freq), SR)
+    out = plot_inputs(
+        [("query", paths[0]), ("loop", paths[1])],
+        load_model_config(),
+        tmp_path / "inputs.pdf",
+        tempo_bpm=120,
+        lead_in_s=0.25,
+    )
+    assert out.read_bytes().startswith(b"%PDF")
+    np.testing.assert_allclose(beat_times(120, 0.25, 4), [0.25, 0.75, 1.25, 1.75, 2.25])
 
 
 def test_frontend_chart_skips_test_sets_without_results(tmp_path):
