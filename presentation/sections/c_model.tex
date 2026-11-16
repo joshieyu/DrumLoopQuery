@@ -1,8 +1,8 @@
 % ============================================================
 % C: Encoder and contrastive training   (Anika, ~2:00)
 % ============================================================
-% Scaffold: the facts below come from PR #1 (src/models/). Check them, replace
-% every red TODO, and swap the practice numbers for v0 numbers when you have them.
+% Filled in with the v0.7 numbers (Nov 13-15). The test results are on Dylan's slides.
+% Needs figures/c_training_curves.pdf (upload it to the figures/ folder on Overleaf).
 \section{Method: Model}
 \presenter{Anika}
 
@@ -39,13 +39,22 @@
   \vspace{0.35cm}
   \raggedright
   \begin{itemize}
-    \item About 550k parameters; trains on one GPU \todo{training time on v0 data}.
-    \item Front-ends compared in experiment E2: R1 is timbre-light by design, R3 is a generic spectrogram.
-          \todo{which front-end(s) the results use}
+    \item About 550k parameters; about 35 minutes per model (30 epochs) on a laptop GPU.
+    \item Front-ends compared in experiment E2, same encoder and training for both:
+          R1 is timbre-light by design, R3 is a generic spectrogram.
   \end{itemize}
 
   \note{
-    \todo{C: speaker notes.}
+    Our model is one encoder used for both sides of the search.
+    Audio comes in at 22 kHz. A front-end turns it into feature frames every 10 ms:
+    either three onset-strength curves for low, mid and high frequencies (roughly kick,
+    snare and hi-hat), which is R1, or a 64-band log-mel spectrogram, which is R3.
+    A stride-2 convolution groups the frames into 20 ms tokens, and a small 4-layer
+    Transformer looks across the whole two bars. A learned token tells it whether the
+    input is a drum loop, a beatbox or a tap. Attention pooling squeezes everything into
+    one 128-number vector of length one. Loops and beatboxes go through the same weights,
+    so searching is just finding the nearest vectors. It has about 550 thousand
+    parameters and trains in about 35 minutes per model on a laptop GPU.
   }
 \end{frame}
 
@@ -55,46 +64,34 @@
 
   \begin{columns}[T,onlytextwidth]
     \column{0.48\textwidth}
+      \small
       \begin{itemize}
-        \item \textbf{Supervised contrastive loss} (SupCon): the class is the pattern ID.
-        \item \textbf{Batches} of $P$ patterns $\times$ $K$ views: different kits, different voices, different sloppiness.
-              \todo{$P$, $K$, batch size}
+        \item \textbf{Supervised contrastive loss} (SupCon, temperature 0.1): the class is the pattern ID.
+        \item \textbf{Batches} of $P=32$ patterns $\times$ $K=3$ views $=96$ clips, with at least
+              one beatbox per pattern: different kits, different voices, different sloppiness.
+        \item \textbf{Data:} 6,889 training rhythms; 34,520 loops on 5 kits and
+              13,808 fake beatboxes from 20 AVP voices.
         \item AdamW, cosine learning-rate decay, gradient clipping (some seeds collapsed without it).
-        \item Validation MRR every epoch; the best checkpoint is kept.
+        \item Validation MRR every epoch, on new rhythms; the best checkpoint is kept.
       \end{itemize}
     \column{0.48\textwidth}
-      \figtodo[4.8cm]{training curve: loss and validation MRR per epoch, on the v0 data}
+      \slidefig[5.2cm]{c_training_curves.pdf}
   \end{columns}
 
   \note{
-    \todo{C: speaker notes.}
-  }
-\end{frame}
-
-% ------------------------------------------------------------
-\begin{frame}{First check: the pipeline works}
-  \slidepoint{On practice data, the encoder ranks the right loop far above chance.}
-
-  \centering
-  \begin{tabular}{lcccc}
-    \toprule
-    Front-end & MRR (95\% CI) & Hit@1 & Hit@5 & Hit@10 \\
-    \midrule
-    chance & 0.052 & & & \\
-    R1: 3-band onsets & 0.373 (0.325--0.424) & 0.22 & 0.52 & 0.74 \\
-    R3: log-mel & 0.793 (0.751--0.834) & 0.66 & 0.96 & 0.99 \\
-    \bottomrule
-  \end{tabular}
-
-  \vspace{0.4cm}
-  \raggedright\small
-  \begin{itemize}
-    \item Practice set: 100 test loops, 200 queries. The ``queries'' were the same loops on a second drum kit,
-          not beatboxes, so R3 can partly match by sound. It shows the pipeline works; it doesn't settle R1 vs.\ R3.
-    \item \todo{replace with, or add, the v0 numbers on fake beatbox queries}
-  \end{itemize}
-
-  \note{
-    \todo{C: speaker notes.}
+    We train with a supervised contrastive loss. Every batch has 32 rhythms, with three
+    versions of each: a loop on some kit, and a fake beatbox in a different AVP voice
+    with different sloppiness. There is always at least one beatbox per rhythm.
+    The loss pulls the versions of the same rhythm together and pushes every other rhythm
+    away. The training set is about 6,900 rhythms: 34,500 drum loops on five kits and
+    13,800 fake beatboxes from 20 voices. After every epoch we check retrieval on
+    validation rhythms the model has never seen, and keep the best checkpoint.
+    On the curve, the loss drops fast in the first few epochs, and validation MRR climbs
+    from about 0.15 to 0.3 for R1 and 0.33 for R3, far above random guessing at under
+    0.01. Both flatten out around epoch 20. One practical lesson: without gradient
+    clipping, some random seeds collapsed, and every clip got the same vector.
+    Validation uses the training kits, so it doesn't tell us how the model does on new
+    sounds. Dylan will show that next: the test set, with new rhythms, new drum kits and
+    new voices, against the baselines.
   }
 \end{frame}
