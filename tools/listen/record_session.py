@@ -1,12 +1,16 @@
 """Record the team's real beatbox queries (README §13, spec §8) from a local web page.
 
-    .venv/bin/python -m tools.listen.record_session --beats ~/Downloads/recording_beats.csv
+    .venv/bin/python -m tools.listen.record_session \
+        --beats manifests/recording_beats_round2.csv --member A
     then open http://127.0.0.1:8770 in Chrome, with wired headphones on
 
 The beat list is the beat picker's export (`tools.listen.beat_picker`, one row per member
 and beat). For each beat the page plays the target loop twice, counts in at the loop's
 tempo, and records two bars of beatbox with the click in the headphones. A free take
 (no click) records after the same two plays until Stop.
+
+On start the server builds every target loop once. If it can't, because GMD or the kit
+isn't on this machine, it says what to download and stops.
 
 Each take is saved under data/recordings/team/ with README §13's name,
 `team_<member>_<pattern_id>_<click|free>_<take>.wav`:
@@ -32,6 +36,7 @@ import json
 import math
 import os
 import re
+import sys
 import threading
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
@@ -45,7 +50,9 @@ import yaml
 
 from src.audio import frame_audio, normalize_audio
 from src.music.spec import MusicSpec, load_spec
+from tools.download_datasets import DATASETS
 from tools.listen.beat_picker import CATALOG_DIR, DEFAULT_KIT, GMD_DIR, PLAYS
+from tools.render.kits import KITS_DIR, kit_by_id
 
 REPO = Path(__file__).resolve().parents[2]
 OUT_DIR = REPO / "data" / "recordings" / "team"
@@ -206,7 +213,7 @@ class LoopAudio:
         if self._renderer is None:
             try:
                 from tools.listen.beat_picker import load_catalog
-                from tools.render.kits import kit_by_id, load_program
+                from tools.render.kits import load_program
                 from tools.render.sampler import Sampler
 
                 records = {
@@ -256,6 +263,52 @@ class LoopAudio:
                     )
                 self._cache[beat.clip_id] = audio
             return self._cache[beat.clip_id]
+
+
+def check_loops(loops, beats: list[Beat]) -> list[str]:
+    """Load every target loop once (warming the cache); one message per loop that fails."""
+    problems = []
+    for beat in {b.clip_id: b for b in beats}.values():
+        try:
+            loops.wav(beat)
+        except FileNotFoundError as exc:
+            problems.append(str(exc))
+    return problems
+
+
+def missing_downloads(
+    spec: MusicSpec, kit_id: str, gmd_dir: Path, kits_dir: Path = KITS_DIR
+) -> list[str]:
+    """`tools.download_datasets` names for what rendering the loops needs and isn't here."""
+    missing = [] if (gmd_dir / "info.csv").is_file() else ["gmd"]
+    kit = kit_by_id(spec, kit_id)
+    if not (kits_dir / kit.program).is_file():
+        missing.append(Path(kit.program).parts[0])  # kits unpack to data/raw/kits/<name>/
+    return missing
+
+
+def python_command() -> str:
+    """This interpreter, relative to the working directory when it can be (.venv/bin/python)."""
+    exe = Path(sys.executable)
+    try:
+        return str(exe.relative_to(Path.cwd()))
+    except ValueError:
+        return str(exe)
+
+
+def setup_help(problems: list[str], missing: list[str], total: int) -> str:
+    lines = [f"Can't play {len(problems)} of {total} target loops, so the page can't start."]
+    if missing:
+        size = sum(DATASETS[n].size_bytes for n in missing if n in DATASETS) / 1e6
+        about = f" (about {size:.0f} MB)" if size else ""
+        lines += [
+            f"This machine is missing {' and '.join(missing)}, which the loops are built from.",
+            f"Download {'them' if len(missing) > 1 else 'it'}{about}, then start again:",
+            f"    {python_command()} -m tools.download_datasets {' '.join(missing)}",
+        ]
+    else:
+        lines.append(f"First problem: {problems[0]}")
+    return "\n".join(lines)
 
 
 def query_normalization(config: Path = DATASET_CONFIG) -> dict:
@@ -566,13 +619,25 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
 
     spec = load_spec()
+    try:
+        kit_by_id(spec, args.kit)
+    except KeyError as exc:
+        ap.error(exc.args[0])
     beats = read_beats(args.beats.expanduser(), spec, dualized_ids(LIBRARY_MANIFEST))
+    loops = LoopAudio(spec, args.kit, args.catalog, args.gmd)
+    distinct = len({b.clip_id for b in beats})
+    print(f"Preparing {distinct} target loops...", flush=True)
+    problems = check_loops(loops, beats)
+    if problems:
+        missing = missing_downloads(spec, args.kit, args.gmd)
+        print(setup_help(problems, missing, distinct), file=sys.stderr)
+        return 1
     args.out.mkdir(parents=True, exist_ok=True)
     session = Session(
         beats,
         spec,
         args.out,
-        LoopAudio(spec, args.kit, args.catalog, args.gmd),
+        loops,
         normalization=query_normalization(),
         count_in_bars=args.count_in_bars,
         member=args.member,
@@ -582,7 +647,10 @@ def main(argv: list[str] | None = None) -> int:
         f"{m} {sum(b.member == m for b in beats)}" for m in sorted({b.member for b in beats})
     )
     print(f"{len(beats)} beats ({members}); takes go to {repo_path(args.out)}")
-    print(f"Open http://127.0.0.1:{args.port} in Chrome, with wired headphones on. Ctrl+C stops.")
+    print(
+        f"Open http://127.0.0.1:{args.port} in Chrome, with wired headphones on. Ctrl+C stops.",
+        flush=True,
+    )
     try:
         server.serve_forever()
     except KeyboardInterrupt:

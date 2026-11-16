@@ -259,3 +259,54 @@ def test_server_rejects_bad_takes(server, tmp_path, query, body):
     status, _, _ = call(f"{server}/api/take?{query}", np.full(body, 1, dtype=np.uint8).tobytes())
     assert status == 400
     assert not list(tmp_path.glob("*.wav"))
+
+
+def test_check_loops_names_each_failing_beat(beats):
+    assert rs.check_loops(FakeLoops(), beats) == ["no audio for it"]
+
+
+def test_missing_downloads(tmp_path, spec):
+    gmd, kits = tmp_path / "gmd", tmp_path / "kits"
+    assert rs.missing_downloads(spec, "avl_black_pearl", gmd, kits) == ["gmd", "avl_black_pearl"]
+    program = kits / rs.kit_by_id(spec, "avl_black_pearl").program
+    program.parent.mkdir(parents=True)
+    program.touch()
+    gmd.mkdir()
+    (gmd / "info.csv").touch()
+    assert rs.missing_downloads(spec, "avl_black_pearl", gmd, kits) == []
+
+
+def test_setup_help():
+    text = rs.setup_help(["no audio"], ["gmd", "avl_black_pearl"], 40)
+    assert "Can't play 1 of 40 target loops" in text
+    assert "missing gmd and avl_black_pearl" in text and "MB)" in text
+    assert text.endswith("-m tools.download_datasets gmd avl_black_pearl")
+    assert rs.setup_help(["boom"], [], 2).endswith("First problem: boom")
+
+
+class NoLoops:
+    source = "nothing"
+
+    def __init__(self, *args):
+        pass
+
+    def wav(self, beat):
+        raise FileNotFoundError(f"no audio for {beat.clip_id}")
+
+
+def test_main_stops_and_says_what_to_download(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(rs, "LoopAudio", NoLoops)
+    path = write_beats(
+        tmp_path / "b.csv", ["A,87391916ea0e7e12,c,p,0,120,s,straight,0,0,sparse,1,1,1"]
+    )
+    out = tmp_path / "takes"
+    argv = ["--beats", str(path), "--out", str(out), "--gmd", str(tmp_path / "no_gmd")]
+    assert rs.main(argv) == 1
+    assert "-m tools.download_datasets gmd" in capsys.readouterr().err
+    assert not out.exists()
+
+
+def test_main_rejects_an_unknown_kit(tmp_path):
+    path = write_beats(tmp_path / "b.csv", ["A,87391916ea0e7e12,c,p,0,120,s,f,0,0,d,1,1,1"])
+    with pytest.raises(SystemExit):
+        rs.main(["--beats", str(path), "--kit", "no_such_kit"])
