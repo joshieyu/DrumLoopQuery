@@ -18,10 +18,12 @@ from src.eval.pool import Pool
 from src.eval.transcribe_baseline import (
     Settings,
     detect_onsets,
+    diagnose_queries,
     dilate,
     match_onsets,
     quantize,
     score_queries,
+    summarize_diagnostics,
     tolerant_f1,
     tune,
 )
@@ -274,7 +276,9 @@ def dataset(tmp_path, spec):
 
 def test_the_whole_chain_retrieves_the_right_loop(dataset, classifier, spec):
     pool, library, relevance, tmp_path = dataset
-    scores, stats = score_queries(pool, library, spec, classifier, Settings())
+    scores, stats, grids = score_queries(pool, library, spec, classifier, Settings())
+    assert grids.shape == (16, 3, 96)
+    assert grids.dtype == bool
     assert scores.shape == (16, 16)
     assert stats["library_grids_not_matching_manifest"] == 0
     assert stats["queries_with_no_hits"] == 0
@@ -296,6 +300,51 @@ def test_a_library_grid_that_disagrees_with_the_manifest_stops_the_run(dataset, 
     library.loc[library["source_clip_id"] == "src0", "pattern_id"] = "0000000000000000"
     with pytest.raises(EvalError, match="differs from the manifest"):
         score_queries(pool, library, spec, classifier, Settings())
-    scores, stats = score_queries(pool, library, spec, classifier, Settings(), allow_mismatch=True)
+    scores, stats, _ = score_queries(
+        pool, library, spec, classifier, Settings(), allow_mismatch=True
+    )
     assert stats["library_grids_not_matching_manifest"] == 1
     assert scores.shape == (16, 16)
+
+
+def test_diagnostics_separate_what_the_generator_removed_from_what_the_detector_missed():
+    true = np.stack([_pattern_grid([0, 24], [12, 36], [0, 12, 24, 36])])  # 8 hits
+    ## B3 transcribed 4 hits: 3 within a step of a true hit of the same voice, 1 far from any
+    heard = np.stack([_pattern_grid([1], [12], [0, 50])])
+    removed = pd.DataFrame(
+        {
+            "thinned_hat_hits": [1],
+            "suppressed_simultaneous": [1],
+            "speed_limited_hits": [2],
+            "dropped_hits": [0],
+        },
+        index=pd.Index(["q1"], name="query_id"),
+    )
+    table = diagnose_queries(np.array(["q1"]), heard, true, removed)
+    row = table.iloc[0]
+    assert row["hits_in_true_loop"] == 8
+    assert row["hits_generator_removed"] == 4
+    assert row["hits_expected_voiced"] == 4
+    assert row["hits_transcribed"] == 4
+    assert row["transcribed_hits_matching_true_loop"] == 3
+    summary = summarize_diagnostics(table)
+    assert summary["transcribed_vs_expected_median_ratio"] == 1.0
+    assert summary["share_of_transcribed_hits_matching_true_loop"] == 0.75
+    assert summary["queries_where_removed_exceeds_loop"] == 0
+
+
+def test_expected_hits_never_go_below_zero_and_overlap_is_flagged():
+    true = np.stack([_pattern_grid([0], [12], [])])  # 2 hits
+    heard = np.stack([_pattern_grid([0], [], [])])
+    removed = pd.DataFrame(
+        {
+            "thinned_hat_hits": [0],
+            "suppressed_simultaneous": [3],
+            "speed_limited_hits": [0],
+            "dropped_hits": [0],
+        },
+        index=pd.Index(["q1"], name="query_id"),
+    )
+    table = diagnose_queries(np.array(["q1"]), heard, true, removed)
+    assert table.iloc[0]["hits_expected_voiced"] == 0
+    assert summarize_diagnostics(table)["queries_where_removed_exceeds_loop"] == 1

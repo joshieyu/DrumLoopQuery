@@ -11,7 +11,7 @@ import pandas as pd
 from src.music.spec import MusicSpec, load_spec
 
 from src.eval.audio_io import load_mono, missing_files
-from src.eval.evaluate import EvalError
+from src.eval.evaluate import EvalError, load_relevance
 from src.eval.hit_classifier import (
     LABEL_TO_VOICE,
     NEXT_HIT_GUARD_S,
@@ -284,7 +284,7 @@ def score_queries(
     classifier: HitClassifier,
     settings: Settings,
     allow_mismatch: bool = False,
-) -> tuple[np.ndarray, dict]:
+) -> tuple[np.ndarray, dict, np.ndarray]:
     clips = library_extra.set_index("clip_id").loc[pool.library["clip_id"]].reset_index()
     grids = source_grids(clips, spec)
     if grids.mismatched and not allow_mismatch:
@@ -302,7 +302,63 @@ def score_queries(
         "queries_with_no_hits": int((counts == 0).sum()),
         "library_grids_not_matching_manifest": len(grids.mismatched),
     }
-    return scores.astype(np.float32), stats
+    return scores.astype(np.float32), stats, query_grids
+
+
+## the generator records how many hits it took out of each beatbox, in these manifest columns
+REMOVAL_COLUMNS = (
+    "thinned_hat_hits",
+    "suppressed_simultaneous",
+    "speed_limited_hits",
+    "dropped_hits",
+)
+
+
+def diagnose_queries(
+    query_ids: np.ndarray,
+    query_grids: np.ndarray,
+    true_grids: np.ndarray,
+    removed: pd.DataFrame,
+) -> pd.DataFrame:
+    ## query_grids: what B3 transcribed. true_grids: the library loop each query was made from.
+    ## removed: per query (indexed by query_id), the hits the generator took out of that loop
+    n = len(query_ids)
+    transcribed = query_grids.reshape(n, -1).sum(axis=1)
+    in_loop = true_grids.reshape(n, -1).sum(axis=1)
+    matching = (query_grids & dilate(true_grids, TOLERANCE_STEPS)).reshape(n, -1).sum(axis=1)
+    taken_out = removed.reindex(query_ids)[list(REMOVAL_COLUMNS)].sum(axis=1).to_numpy()
+    return pd.DataFrame(
+        {
+            "query_id": query_ids,
+            "hits_in_true_loop": in_loop,
+            "hits_generator_removed": taken_out,
+            "hits_expected_voiced": np.maximum(in_loop - taken_out, 0),
+            "hits_transcribed": transcribed,
+            "transcribed_hits_matching_true_loop": matching,
+        }
+    )
+
+
+def summarize_diagnostics(table: pd.DataFrame) -> dict:
+    expected = table["hits_expected_voiced"]
+    usable = expected > 0
+    return {
+        "queries": len(table),
+        "median_hits_in_true_loop": float(table["hits_in_true_loop"].median()),
+        "median_hits_expected_voiced": float(expected.median()),
+        "median_hits_transcribed": float(table["hits_transcribed"].median()),
+        "transcribed_vs_expected_median_ratio": float(
+            (table.loc[usable, "hits_transcribed"] / expected[usable]).median()
+        ),
+        "share_of_transcribed_hits_matching_true_loop": float(
+            table["transcribed_hits_matching_true_loop"].sum()
+            / max(table["hits_transcribed"].sum(), 1)
+        ),
+        ## if the four removal counts overlapped, this would be above zero
+        "queries_where_removed_exceeds_loop": int(
+            (table["hits_generator_removed"] > table["hits_in_true_loop"]).sum()
+        ),
+    }
 
 
 def _add_avp_arguments(parser: argparse.ArgumentParser) -> None:
@@ -335,9 +391,37 @@ def main() -> None:
         "--out", type=Path, default=REPO_ROOT / "results/embeddings/transcribe_syn_beatbox.npz"
     )
     run.add_argument("--allow-mismatch", action="store_true")
+    run.add_argument("--grids", type=Path, default=B3_DIR / "query_grids.npz")
+    diagnose = sub.add_parser("diagnose", help="compare transcribed grids with the true loops")
+    diagnose.add_argument(
+        "--library", type=Path, default=REPO_ROOT / "manifests/library_manifest.csv"
+    )
+    diagnose.add_argument(
+        "--queries", type=Path, default=REPO_ROOT / "manifests/query_manifest.csv"
+    )
+    diagnose.add_argument("--relevance", type=Path, default=REPO_ROOT / "manifests/relevance.json")
+    diagnose.add_argument("--grids", type=Path, default=B3_DIR / "query_grids.npz")
+    diagnose.add_argument("--out", type=Path, default=B3_DIR / "diagnostics.csv")
     args = parser.parse_args()
     try:
         spec = load_spec()
+        ## say what is missing and what to run, instead of a bare file-not-found
+        if args.command in ("train", "tune"):
+            if not args.avp_root.is_dir():
+                raise EvalError(
+                    f"AVP audio not found at {args.avp_root}. "
+                    "Download it with: python -m tools.download_datasets"
+                )
+            if not args.avp_index.exists():
+                raise EvalError(
+                    f"AVP index not found at {args.avp_index}. "
+                    "Build it with: python -m src.queries.index_avp"
+                )
+        if args.command == "run" and not args.classifier.exists():
+            raise EvalError(
+                f"no classifier at {args.classifier}. Run the train command first "
+                "(and tune, to set the detector)"
+            )
         if args.command == "train":
             metrics = train_classifier(
                 args.avp_index, args.avp_root, args.splits, spec.voices, args.classifier
@@ -357,6 +441,30 @@ def main() -> None:
             )
             print(json.dumps({**asdict(settings), **report}, indent=2))
             print(f"Wrote {args.settings.resolve()}")
+        elif args.command == "diagnose":
+            pool = load_pool(args.library, args.queries, args.relevance, pool_kits=None)
+            relevance = load_relevance(args.relevance)
+            saved = np.load(args.grids, allow_pickle=False)
+            query_ids = saved["query_ids"].astype(str)
+            if set(query_ids) != set(pool.queries["query_id"]):
+                raise EvalError("the saved grids are for different queries; rerun the run command")
+            library_extra = read_manifest(args.library, ("clip_id", *GRID_COLUMNS))
+            first_clips = [relevance[q][0] for q in query_ids]
+            needed = library_extra.set_index("clip_id").loc[sorted(set(first_clips))].reset_index()
+            truth = source_grids(needed, spec)
+            row_of = dict(
+                zip(needed["clip_id"], truth.rows_for(needed["source_clip_id"]), strict=True)
+            )
+            true_grids = np.stack([truth.onsets[row_of[c]] for c in first_clips])
+            removed = pd.read_csv(args.queries).set_index("query_id")
+            missing = [c for c in REMOVAL_COLUMNS if c not in removed.columns]
+            if missing:
+                raise EvalError(f"query manifest is missing {missing}")
+            table = diagnose_queries(query_ids, saved["query_grids"], true_grids, removed)
+            args.out.parent.mkdir(parents=True, exist_ok=True)
+            table.to_csv(args.out, index=False)
+            print(json.dumps(summarize_diagnostics(table), indent=2))
+            print(f"Wrote {args.out.resolve()}")
         else:
             pool = load_pool(
                 args.library, args.queries, args.relevance, pool_kits=args.pool_kits, timing=True
@@ -370,7 +478,7 @@ def main() -> None:
             library_extra = read_manifest(args.library, ("clip_id", *GRID_COLUMNS))
             settings = load_settings(args.settings)
             print(f"{len(pool.library)} library clips, {len(pool.queries)} queries, {settings}")
-            scores, stats = score_queries(
+            scores, stats, query_grids = score_queries(
                 pool, library_extra, spec, classifier, settings, args.allow_mismatch
             )
             args.out.parent.mkdir(parents=True, exist_ok=True)
@@ -379,6 +487,13 @@ def main() -> None:
                 query_ids=pool.queries["query_id"].to_numpy(dtype=str),
                 library_ids=pool.library["clip_id"].to_numpy(dtype=str),
                 scores=scores,
+            )
+            ## kept so the diagnose command can compare them with the true loops without audio
+            args.grids.parent.mkdir(parents=True, exist_ok=True)
+            np.savez(
+                args.grids,
+                query_ids=pool.queries["query_id"].to_numpy(dtype=str),
+                query_grids=query_grids,
             )
             print(json.dumps(stats, indent=2))
             print(f"Wrote {args.out.resolve()}")
