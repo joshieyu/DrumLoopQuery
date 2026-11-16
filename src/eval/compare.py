@@ -213,15 +213,15 @@ def compare(
     return pd.DataFrame(rows), pair_table, latex_table(summary, chance)
 
 
-def parse_systems(items: list[str]) -> dict[str, Path]:
+def parse_systems(items: list[str], minimum: int = 2) -> dict[str, Path]:
     systems = {}
     for item in items:
         name, separator, path = item.partition("=")
         if not separator or not name or not path:
             raise EvalError(f"--system must look like NAME=path, got {item!r}")
         systems[name] = Path(path)
-    if len(systems) < 2:
-        raise EvalError("give at least two systems to compare")
+    if len(systems) < minimum:
+        raise EvalError(f"give at least {minimum} system{'s' if minimum > 1 else ''}")
     return systems
 
 

@@ -118,7 +118,7 @@ def test_system_argument_parsing():
     assert parse_systems(["a=x/y", "b=z"]) == {"a": Path("x/y"), "b": Path("z")}
     with pytest.raises(EvalError, match="NAME=path"):
         parse_systems(["nopath", "b=z"])
-    with pytest.raises(EvalError, match="at least two"):
+    with pytest.raises(EvalError, match="at least 2 systems"):
         parse_systems(["a=x"])
 
 

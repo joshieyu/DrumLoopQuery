@@ -24,6 +24,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
         "src.eval.ttd_render",
         "src.eval.transcribe_baseline",
         "src.eval.compare",
+        "src.eval.sloppiness",
     ],
 )
 def test_help_runs(module):
