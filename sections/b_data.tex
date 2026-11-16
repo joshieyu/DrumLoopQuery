@@ -67,82 +67,177 @@
   \textbf{D} Dylan: answer key and evaluation\par}
 
   \note{
-    \todo{B: speaker notes.} Walk left to right: one MIDI pattern goes two ways, through drum kits to make
-    library loops, and through real people's mouth sounds to make fake beatbox queries. Both go through one
-    shared encoder; training pulls the same pattern together. At test time, real beatboxes go through
-    the same encoder.
+    We start with a drum pattern recorded as MIDI—instructions describing which drums were hit and when. We create two versions: a drum-kit recording for the library, and a synthetic beatbox recording using real mouth sounds. Because both come from the same pattern, we know which recordings should match.
   }
 \end{frame}
 
 % ------------------------------------------------------------
 \begin{frame}{The loop library}
-  \slidepoint{Real drummers' MIDI, cut into 2-bar loops and played through drum kits, with separate kits for training and testing.}
+  \slidepoint{Real drummers' MIDI, cut into two-bar loops
+    and rendered through separate training and test kits.}
 
   \begin{columns}[T,onlytextwidth]
-    \column{0.5\textwidth}
+    \column{0.50\textwidth}
       \small
       \begin{itemize}
-        \item \textbf{Source:} Groove MIDI Dataset, 10 drummers, 388 performances.
-        \item \textbf{8,643 two-bar loops} with GMD's own split: 6,904 train / 846 validation / 893 test.
-        \item \textbf{7 free acoustic kits:} 5 for training (4 AVL kits, DRSKit),
-              2 held out for test (Salamander, MuldjordKit).
-        \item Recorded tempo, with a 0.25\,s lead-in.
-        \item \todo{final rendered count (loops $\times$ kits) and hours of audio}
+        \item \textbf{Source:} Groove MIDI Dataset;
+          388 performances selected by our pipeline.
+
+        \item \textbf{8,643 two-bar loops.}
+          Preserve GMD's original splits, removing three
+          training copies whose patterns also appeared
+          in validation or test.
+
+        \item \textbf{7 acoustic kits:}
+          5 for training and validation;
+          Salamander and MuldjordKit held out for testing.
+
+        \item Recorded tempo, a 0.25\,s lead-in,
+          and a cut at the end of bar two with a 20\,ms fade.
+
+        \item \textbf{40,536 drum clips};
+          approximately \textbf{53.8 hours},
+          including lead-ins.
       \end{itemize}
+
     \column{0.46\textwidth}
-      \figtodo[4.6cm]{one loop on two kits (spectrograms or waveforms), or a table of clips per split}
+      \centering
+      \small
+      \begin{tabular}{lrr}
+        \hline
+        \textbf{Split} & \textbf{Loops} & \textbf{Clips} \\
+        \hline
+        Train      & 6,904 & 34,520 \\
+        Validation &   846 &  4,230 \\
+        Test       &   893 &  1,786 \\
+        \hline
+        Total      & 8,643 & 40,536 \\
+        \hline
+      \end{tabular}
+
+      \vspace{0.4cm}
+      {\footnotesize
+        Each source loop is rendered through
+        every kit assigned to its split.
+      }
   \end{columns}
 
   \note{
-    \todo{B: speaker notes.}
+    MIDI describes drum hits and their timing rather than
+    containing recorded audio. We selected 388 performances
+    and cut them into 8,643 usable two-bar loops.
+
+    We preserve the original dataset splits, except that
+    three training copies were removed to prevent the same
+    rhythm appearing across splits.
+
+    Each training or validation loop is rendered through
+    five kits. Each test loop is rendered through two
+    held-out kits. This produces 40,536 audio clips,
+    representing about 53.8 hours including lead-ins.
+
+    We also checked all 57,822 generated audio files,
+    including the beatbox queries, with the model's loader.
+    We verified the split assignments and confirmed that
+    every query has a matching library target.
   }
 \end{frame}
 
 % ------------------------------------------------------------
 \begin{frame}{Fake beatbox queries}
-  \slidepoint{Each pattern is ``beatboxed'' with one real person's mouth sounds, simplified and made sloppy the way amateurs are.}
+  \slidepoint{Each pattern is ``beatboxed'' with one real
+    person's mouth sounds, then simplified and made less precise.}
 
   \begin{columns}[T,onlytextwidth]
     \column{0.5\textwidth}
       \small
       \begin{itemize}
-        \item \textbf{Voices:} AVP dataset, 28 amateur beatboxers, 9,776 usable kick, snare and hi-hat sounds.
-              People split 20 train / 3 validation / 5 test.
-        \item \textbf{Simplify like a person:} one sound at a time (kick, then snare, then hats);
-              sounds never overlap; a speed limit (next slide).
-        \item \textbf{Sloppiness:} steady rush or drag (up to $\pm$20\,ms), per-hit wobble (up to 40\,ms),
-              dropped hits (hats up to 40\%), background noise (10--40\,dB SNR).
-        \item \todo{number of fake queries per split}
+        \item \textbf{Voices:} AVP dataset, 28 amateur
+          beatboxers, 9,776 usable kick, snare and hi-hat sounds.
+          People split 20 train / 3 validation / 5 test.
+
+        \item \textbf{Simplification:} priority goes to kicks,
+          then snares, then hats. One sound at a time,
+          no overlap, and a speed limit.
+
+        \item \textbf{Sloppiness:} steady rush or drag
+          (up to $\pm$20\,ms), per-hit wobble (up to 40\,ms),
+          dropped hits (hats up to 40\%), and background
+          noise (10--40\,dB SNR).
+
+        \item \textbf{17,286 synthetic queries:}
+          13,808 training, 1,692 validation, and 1,786 test.
       \end{itemize}
+
     \column{0.46\textwidth}
-      \figtodo[4.6cm]{clean vs.\ sloppy beatbox of one pattern, with the drum loop (or play the audio)}
+      \slidefig[4.6cm]{beatbox-comparison.pdf}
   \end{columns}
 
   \note{
-    \todo{B: speaker notes.} Every value here comes from the music spec (config/music\_spec.yaml, v0.7).
+    To make the beatbox queries, we use recordings from AVP,
+    a dataset of 28 amateur beatboxers. We take their individual
+    kick, snare, and hi-hat sounds and arrange them to follow
+    the source drum pattern.
+
+    Each source loop gets two versions from the same assigned
+    participant: one using their Personal sound set, and one
+    using their Fixed sound set.
+
+    We simplify the pattern so it can be voiced one sound
+    at a time. Kicks have priority over snares, and snares
+    over hats when deciding which hits to keep. This is a
+    priority rule, not a fixed order of sounds in the recording.
+
+    We then add timing changes, dropped hits, and noise.
+    The middle row shows the clean beatbox, and the bottom
+    row adds those imperfections. The red cross marks a
+    hit that was dropped.
+
+    We generated 17,286 queries. Each keeps its source rhythm
+    label, so we know which drum loops it should retrieve.
   }
 \end{frame}
 
 % ------------------------------------------------------------
-% Prepared by Joshua from the listening work. Present it here, or move it to
-% Joshua's section if that flows better. Cut it if time is short.
 \begin{frame}{Making the fake beatboxes sound human}
-  \slidepoint{The first fake beatboxes were twice as fast as any real person. A speed limit, tuned by ear, fixed that.}
+  \slidepoint{In the listening comparison, the initial queries
+    had roughly twice the median hit rate of real AVP recordings.
+    A speed limit reduced that gap.}
 
   \slidefig[3.4cm]{beatbox_speed.pdf}
 
   \vspace{0.1cm}
   \small
   \begin{itemize}
-    \item Hits a drummer plays almost together landed on neighbouring grid steps and were voiced as separate sounds.
-    \item \textbf{Speed limit:} a kick or snare needs 120\,ms from the sounds kept before it, a hat 250\,ms.
-          Chosen by ear from five versions; 80\% of kicks and snares are still voiced.
-    \item The answer key never changes: only what the fake beatboxer voices does.
+    \item \textbf{Speed limit:} candidates need at least
+      120\,ms for kicks and snares, or 250\,ms for hats,
+      from every hit already kept in priority order.
+
+    \item \textbf{Known trade-off:} the full build retains
+      only 10\% of the source hi-hat hits.
+      This limitation was accepted for v0.
+
+    \item The source rhythm label stays unchanged,
+      only the sounds voiced by the fake beatboxer change.
   \end{itemize}
 
   \note{
-    Compared over 1,500 random loops against 56 real AVP improvisations. Before: a median 5.9 sounds per
-    second, and a quarter of gaps under 100 ms, which nobody can beatbox. With the limit: 3.4 per second,
-    and the shortest gaps match real people's (about 130 ms).
+    The first version tried to voice too many drum hits.
+    In Joshua's listening comparison, the median rate was
+    5.9 sounds per second, compared with 2.7 in real AVP
+    improvisations. The speed limit brought it down to 3.4.
+
+    Those numbers describe the listening comparison shown
+    here. In the full dataset, about 98 percent of kicks,
+    60 percent of snares, and only 10 percent of hi-hats
+    survive the simplification rules.
+
+    The recordings are less busy, but they lose a lot of
+    the hat pattern. Joshua accepted that limitation for
+    this initial dataset.
+
+    Each query still points to its original source rhythm.
+    Testing on real team recordings will help us see how
+    well the model handles naturally performed beatboxes.
   }
 \end{frame}
