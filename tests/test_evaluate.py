@@ -179,3 +179,16 @@ def test_groups_come_from_the_chosen_manifest_column(tmp_path):
     assert _groups_from_manifest(ids, manifest, "pattern_id") == ["A", "B", "B", "q4"]
     with pytest.raises(EvalError, match="needs query_id and nope"):
         _groups_from_manifest(ids, manifest, "nope")
+
+
+def test_tied_relevant_clips_do_not_push_each_other_down():
+    ## the same loop on two kits gets the same score; a perfect system must still reach rank 1
+    row = np.array([1.0, 1.0, 0.5, 0.2])
+    assert rank_relevant(row, np.array([0, 1])).tolist() == [1, 2]
+    assert query_metrics(rank_relevant(row, np.array([0, 1])))["rr"] == 1.0
+
+
+def test_a_tie_with_a_non_relevant_clip_still_counts_against_the_system():
+    row = np.array([1.0, 1.0, 1.0, 0.2])
+    ## relevant clips 0 and 1 are tied with irrelevant clip 2, which is placed ahead of both
+    assert rank_relevant(row, np.array([0, 1])).tolist() == [2, 3]

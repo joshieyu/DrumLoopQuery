@@ -57,7 +57,9 @@ def band_edges(n_bands: int, sample_rate: int) -> list[float]:
     raise EvalError(f"bands must be 1 or 3, got {n_bands}")
 
 
-def onset_bands(wave: np.ndarray, sample_rate: int, n_bands: int) -> tuple[np.ndarray, np.ndarray]:
+def onset_bands(
+    wave: np.ndarray, sample_rate: int, n_bands: int, per_bin_mean: bool = False
+) -> tuple[np.ndarray, np.ndarray]:
     if len(wave) < N_FFT:
         raise EvalError("clip is shorter than one analysis window")
     frames = np.lib.stride_tricks.sliding_window_view(wave, N_FFT)[::HOP]
@@ -67,8 +69,14 @@ def onset_bands(wave: np.ndarray, sample_rate: int, n_bands: int) -> tuple[np.nd
     rise = np.maximum(np.diff(db, axis=0), 0.0)
     freqs = np.fft.rfftfreq(N_FFT, 1.0 / sample_rate)
     edges = band_edges(n_bands, sample_rate)
+    ## a sum favours wide bands; an average per bin lets a narrow low band (a kick) count as
+    ## much as a wide high one (hats), which is what hit detection needs
+    reduce = np.mean if per_bin_mean else np.sum
     flux = np.stack(
-        [rise[:, (freqs >= lo) & (freqs < hi)].sum(axis=1) for lo, hi in itertools.pairwise(edges)]
+        [
+            reduce(rise[:, (freqs >= lo) & (freqs < hi)], axis=1)
+            for lo, hi in itertools.pairwise(edges)
+        ]
     )
     ## keep only what rises above each band's typical level, which removes the noise floor
     flux = np.maximum(flux - np.median(flux, axis=1, keepdims=True), 0.0)

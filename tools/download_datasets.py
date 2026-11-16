@@ -298,7 +298,12 @@ def extract(archive: Path, ds: Dataset, raw_dir: Path) -> None:
     raw_dir.mkdir(parents=True, exist_ok=True)
     if ds.archive == "zip":
         with zipfile.ZipFile(archive) as zf:
-            zf.extractall(raw_dir)  # extractall strips absolute paths and '..'
+            members = [
+                m
+                for m in zf.infolist()
+                if not any(ord(c) < 32 or c in '<>:"|?*' for c in m.filename)
+            ]
+            zf.extractall(raw_dir, members=members)
     elif ds.archive == "tar":
         with tarfile.open(archive) as tf:
             tf.extractall(raw_dir, filter="data")  # refuses links and paths outside raw_dir

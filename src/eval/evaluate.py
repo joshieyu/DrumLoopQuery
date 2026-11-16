@@ -11,9 +11,11 @@ Input (README §8 and §12):
 
 Metric definitions (state these in the report):
 
-- **Rank** of a library clip: 1 + the number of clips scored strictly higher, counting
-  every tied clip as ahead of it (*pessimistic* ties), so a system that returns constant
-  scores gets no credit for the library's row order.
+- **Rank** of a relevant clip: its position when the clips are sorted by score. A tied clip
+  that is not relevant counts as ahead of it (*pessimistic* ties), so a system that returns
+  constant scores gets no credit for the library's row order. Tied relevant clips do not push
+  each other down, because a system scoring by grid gives the same loop on every kit the
+  same score.
 - **MRR**: mean over queries of 1 / (rank of the first relevant clip).
 - **Hit@k**: fraction of queries with at least one relevant clip in the top k.
   (Not the fraction of relevant clips retrieved: with exact matching, a query's relevant
@@ -140,14 +142,15 @@ def relevant_indices(
 
 
 def rank_relevant(scores_row: np.ndarray, relevant_idx: np.ndarray) -> np.ndarray:
-    """Pessimistic ranks (1 = best) of the relevant clips, sorted ascending.
-
-    A clip's rank is the number of library clips scoring at least as high as it, itself
-    included, so every tie counts against it.
-    """
-    ascending = np.sort(scores_row)
-    below = np.searchsorted(ascending, scores_row[relevant_idx], side="left")
-    return np.sort(len(scores_row) - below)
+    ## ranks (1 = best) of the relevant clips, ascending. A tied clip that is NOT relevant counts
+    ## as ahead (pessimistic), but tied relevant clips do not push each other down: a system that
+    ## scores by grid gives the same loop on every kit the same score, and should not lose for it
+    is_relevant = np.zeros(len(scores_row), dtype=bool)
+    is_relevant[relevant_idx] = True
+    irrelevant = np.sort(scores_row[~is_relevant])
+    relevant_scores = np.sort(scores_row[is_relevant])[::-1]
+    ahead = len(irrelevant) - np.searchsorted(irrelevant, relevant_scores, side="left")
+    return np.arange(1, len(relevant_scores) + 1) + ahead
 
 
 def query_metrics(ranks: np.ndarray, ks: Sequence[int] = DEFAULT_KS) -> dict[str, float]:
@@ -314,7 +317,7 @@ def main() -> None:
             "n_boot": args.n_boot,
             "seed": args.seed,
         },
-        "tie_policy": "pessimistic",
+        "tie_policy": "pessimistic against non-relevant clips",
         "hit_definition": "at least one relevant clip in the top k",
         "metrics": summary,
     }
