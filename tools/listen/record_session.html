@@ -1,0 +1,484 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Beatbox Recording Session</title>
+<style>
+:root {
+  --bg: #fbfbfa; --panel: #ffffff; --fg: #1b1b1a; --muted: #6a6a66; --line: #e4e3df;
+  --accent: #2f5fd0; --accent-ink: #ffffff; --chip: #f0efeb; --row-hi: #eef3ff;
+  --rec: #c8433a; --rec-ink: #ffffff; --ok: #2e7d4f; --warn: #8a5a00; --meter: #2e7d4f;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141413; --panel: #1c1c1b; --fg: #ecebe7; --muted: #a3a29c; --line: #2f2e2b;
+    --accent: #7d9cf0; --accent-ink: #10131c; --chip: #262624; --row-hi: #1f2638;
+    --rec: #f0857c; --rec-ink: #1b0f0e; --ok: #6cc48f; --warn: #e2b54a; --meter: #6cc48f;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #141413; --panel: #1c1c1b; --fg: #ecebe7; --muted: #a3a29c; --line: #2f2e2b;
+  --accent: #7d9cf0; --accent-ink: #10131c; --chip: #262624; --row-hi: #1f2638;
+  --rec: #f0857c; --rec-ink: #1b0f0e; --ok: #6cc48f; --warn: #e2b54a; --meter: #6cc48f;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.45 system-ui, -apple-system, sans-serif; }
+main { max-width: 980px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { font-size: 22px; margin: 0 0 4px; }
+h2 { font-size: 15px; margin: 0 0 8px; }
+p.lede { color: var(--muted); margin: 0 0 16px; max-width: 760px; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
+.setup { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 24px; }
+.setup .hint { color: var(--muted); font-size: 13px; margin: 6px 0 0; }
+button { font: inherit; font-size: 14px; border: 1px solid var(--line); background: var(--chip); color: var(--fg); border-radius: 6px; padding: 5px 10px; cursor: pointer; }
+button:hover:not(:disabled) { border-color: var(--muted); }
+button:disabled { opacity: .45; cursor: default; }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+button.rec { background: var(--rec); color: var(--rec-ink); border-color: var(--rec); }
+.meter { height: 10px; border-radius: 5px; background: var(--chip); overflow: hidden; margin-top: 8px; }
+.meter div { height: 100%; width: 0; background: var(--meter); transition: width 60ms linear; }
+.meter.clip div { background: var(--rec); }
+.status-line { font-size: 14px; margin-top: 6px; }
+.status-line b { font-variant-numeric: tabular-nums; }
+.ok { color: var(--ok); }
+.warn { color: var(--warn); }
+.bad { color: var(--rec); }
+.stage { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; min-height: 66px; }
+.stage.live { border-color: var(--rec); }
+.dot { width: 36px; height: 36px; border-radius: 50%; background: var(--chip); flex: none; transition: background 40ms; }
+.dot.beat { background: var(--accent); }
+.dot.go { background: var(--rec); }
+.stage > div:nth-child(2) { min-width: 0; }
+.stage .what { font-size: 20px; font-weight: 600; overflow-wrap: anywhere; }
+.stage .sub { color: var(--muted); font-size: 13px; }
+.stage .spacer { flex: 1; }
+.tabs { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+.tabs button { min-width: 40px; font-weight: 600; }
+.tabs button.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.tabs .progress { color: var(--muted); font-size: 13px; margin-left: 8px; }
+.list { display: flex; flex-direction: column; gap: 8px; }
+.beat { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+.beat.active { background: var(--row-hi); border-color: var(--accent); }
+.beat .head { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.beat .num { font-weight: 700; width: 28px; color: var(--muted); }
+.beat .t { font-weight: 600; }
+.beat .m { color: var(--muted); font-size: 13px; }
+.beat .info { flex: 1; min-width: 200px; }
+.beat .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.takes { margin: 8px 0 0 40px; display: flex; flex-direction: column; gap: 6px; }
+.take { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 13px; }
+.take .name { min-width: 120px; font-weight: 600; }
+.take audio { height: 30px; width: 240px; max-width: 100%; }
+.take .verdict button { padding: 2px 8px; font-size: 13px; }
+.take .verdict button.yes.on { background: var(--ok); color: var(--bg); border-color: var(--ok); }
+.take .verdict button.no.on { background: var(--rec); color: var(--rec-ink); border-color: var(--rec); }
+.take input { font: inherit; font-size: 13px; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 3px 6px; width: 220px; max-width: 100%; }
+.error { color: var(--rec); white-space: pre-wrap; }
+.hidden { display: none; }
+@media (max-width: 760px) {
+  .setup { grid-template-columns: 1fr; }
+  .takes { margin-left: 0; }
+}
+</style>
+</head>
+<body>
+<main>
+  <h1>Beatbox recording session</h1>
+  <p class="lede">For each beat: the loop plays twice, then the click counts you in and you beatbox two bars along with it. Wired headphones on, so the click and the loop stay out of the mic. Saved takes appear under each beat; mark each one usable or not.</p>
+
+  <section class="panel setup" aria-label="Setup">
+    <div>
+      <h2>1. Microphone</h2>
+      <button class="primary" id="micBtn">Turn on the mic</button>
+      <div class="meter" id="meter" aria-hidden="true"><div></div></div>
+      <div class="status-line" id="micStatus">Off. Use the built-in laptop mic; the page turns off echo cancellation, noise suppression and auto gain.</div>
+    </div>
+    <div>
+      <h2>2. Latency</h2>
+      <button id="measureBtn" disabled>Measure latency</button>
+      <div class="status-line" id="latStatus">Turn on the mic first.</div>
+      <p class="hint">Unplug the headphones (or hold an earcup against the laptop mic), turn the volume up, press Measure, then plug them back in. Measure again if you change headphones. Bluetooth headphones add a long delay, so use wired ones.</p>
+    </div>
+  </section>
+
+  <section class="stage" id="stage" aria-live="polite">
+    <div class="dot" id="dot"></div>
+    <div>
+      <div class="what" id="what">Ready</div>
+      <div class="sub" id="sub">Pick a beat below.</div>
+    </div>
+    <div class="spacer"></div>
+    <button class="rec hidden" id="stopBtn">Stop</button>
+  </section>
+
+  <div class="tabs" id="tabs"></div>
+  <div class="list" id="list"></div>
+  <p class="error" id="error"></p>
+</main>
+
+<script>
+const WORKLET = `
+class Capture extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.win = null; this.peak = 0; this.lastMeter = 0;
+    this.port.onmessage = (e) => {
+      const m = e.data;
+      if (m.arm) this.win = { from: m.from, to: m.to };
+      if (m.stop && this.win) this.win.to = Math.min(this.win.to, currentFrame);
+    };
+  }
+  process(inputs) {
+    const ch = inputs[0] && inputs[0][0];
+    if (ch) {
+      for (let i = 0; i < ch.length; i++) { const a = Math.abs(ch[i]); if (a > this.peak) this.peak = a; }
+      if (currentFrame - this.lastMeter >= sampleRate / 30) {
+        this.port.postMessage({ meter: this.peak }); this.peak = 0; this.lastMeter = currentFrame;
+      }
+    }
+    const w = this.win;
+    if (w) {
+      const n = ch ? ch.length : 128, s = currentFrame, e = s + n;
+      const lo = Math.max(s, w.from), hi = Math.min(e, w.to);
+      if (ch && hi > lo) this.port.postMessage({ chunk: ch.slice(lo - s, hi - s), at: lo });
+      if (e >= w.to) { this.port.postMessage({ done: true }); this.win = null; }
+    }
+    return true;
+  }
+}
+registerProcessor("capture", Capture);`;
+
+const TAIL_S = 0.75;          // keep recording a little after the last bar
+const LAT_KEY = "recordSession.latency";
+const $ = (id) => document.getElementById(id);
+let S = null, member = null, ctx = null, cap = null, track = null, listener = null;
+let latency = null;           // {ms, source, detail}
+let busy = false, stopRequested = null, anim = null;
+const buffers = new Map();
+
+const store = {
+  get() { try { return JSON.parse(localStorage.getItem(LAT_KEY) || "null"); } catch (e) { return null; } },
+  set(v) { try { localStorage.setItem(LAT_KEY, JSON.stringify(v)); } catch (e) {} },
+};
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || `${r.status} ${r.statusText}`);
+  return j;
+}
+function showError(e) { $("error").textContent = e ? String(e.message || e) : ""; }
+function esc(s) { return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+
+// ---------- audio setup ----------
+function ensureContext() {
+  if (!ctx) ctx = new AudioContext({ latencyHint: "interactive" });
+  if (ctx.state === "suspended") ctx.resume();
+  return ctx;
+}
+
+async function startMic() {
+  showError("");
+  try {
+    ensureContext();
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1 },
+    });
+    track = stream.getAudioTracks()[0];
+    await ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([WORKLET], { type: "text/javascript" })));
+    cap = new AudioWorkletNode(ctx, "capture", { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1], channelCount: 1, channelCountMode: "explicit" });
+    const mute = ctx.createGain(); mute.gain.value = 0;
+    ctx.createMediaStreamSource(stream).connect(cap); cap.connect(mute); mute.connect(ctx.destination);
+    cap.port.onmessage = (e) => {
+      const m = e.data;
+      if ("meter" in m) return drawMeter(m.meter);
+      if (listener) listener(m);
+    };
+    $("micBtn").textContent = "Mic on"; $("micBtn").disabled = true;
+    $("micStatus").innerHTML = `On: <b>${esc(track.label || "microphone")}</b>, ${ctx.sampleRate} Hz. Beatbox a little: the bar should move without turning red.`;
+    $("measureBtn").disabled = false;
+    const saved = store.get();
+    latency = saved && saved.source === "measured" ? saved : { ms: estimateLatency(), source: "estimated" };
+    drawLatency();
+    render();
+  } catch (e) {
+    $("micStatus").innerHTML = `<span class="bad">Couldn't open the mic: ${esc(e.message || e)}. Allow microphone access for this page (Chrome works best).</span>`;
+  }
+}
+
+function estimateLatency() {
+  const s = track && track.getSettings ? track.getSettings() : {};
+  const sec = (ctx.baseLatency || 0) + (ctx.outputLatency || 0) + (typeof s.latency === "number" ? s.latency : 0);
+  return Math.round(sec * 10000) / 10;
+}
+
+function drawMeter(peak) {
+  const db = 20 * Math.log10(Math.max(peak, 1e-6));
+  const pct = Math.max(0, Math.min(100, (db + 60) / 60 * 100));
+  $("meter").firstElementChild.style.width = pct + "%";
+  $("meter").classList.toggle("clip", peak >= 0.99);
+}
+
+function drawLatency() {
+  if (!latency) return;
+  const how = latency.source === "measured"
+    ? `<span class="ok">measured</span>${latency.detail ? `, ${esc(latency.detail)}` : ""}`
+    : `<span class="warn">browser estimate</span>; measuring is more reliable`;
+  $("latStatus").innerHTML = `Latency <b>${latency.ms.toFixed(1)} ms</b> (${how}). Click takes are shifted by this much.`;
+}
+
+// Record the input between two frames of the context clock. stop() ends it early.
+function capture(fromFrame, toFrame) {
+  const chunks = [];
+  const done = new Promise((resolve, reject) => {
+    const guard = setTimeout(() => { listener = null; reject(new Error("The mic stopped sending audio.")); },
+      ((toFrame - ctx.currentTime * ctx.sampleRate) / ctx.sampleRate + 5) * 1000);
+    listener = (m) => {
+      if (m.chunk) chunks.push(m);
+      if (m.done) {
+        clearTimeout(guard); listener = null;
+        const end = chunks.length ? Math.max(...chunks.map((c) => c.at + c.chunk.length)) : fromFrame;
+        const out = new Float32Array(Math.max(0, end - fromFrame));
+        for (const c of chunks) out.set(c.chunk, c.at - fromFrame);
+        resolve(out);
+      }
+    };
+  });
+  cap.port.postMessage({ arm: true, from: fromFrame, to: toFrame });
+  return { done, stop: () => cap.port.postMessage({ stop: true }) };
+}
+
+function click(t, accent, gain = 0.5) {
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  o.frequency.value = accent ? 1600 : 1000;
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(gain, t + 0.001);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+  o.connect(g); g.connect(ctx.destination);
+  o.start(t); o.stop(t + 0.06);
+}
+
+async function measureLatency() {
+  if (busy) return;
+  busy = true; render(); showError("");
+  try {
+    const sr = ctx.sampleRate, n = 8, gap = 0.5, pre = 0.25;
+    const t0 = ctx.currentTime + 0.4;
+    for (let k = 0; k < n; k++) {
+      const t = t0 + k * gap, o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = "square"; o.frequency.value = 3000;
+      g.gain.setValueAtTime(0.9, t); g.gain.setValueAtTime(0, t + 0.004);
+      o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t + 0.01);
+    }
+    setStage("Measuring latency", "Keep quiet for four seconds.", false);
+    const x = await capture(Math.round((t0 - pre) * sr), Math.round((t0 + n * gap) * sr)).done;
+    const base = x.subarray(0, Math.round(pre * sr * 0.8));
+    const noise = Math.sqrt(base.reduce((a, v) => a + v * v, 0) / Math.max(1, base.length)) + 1e-5;
+    const offsets = [];
+    for (let k = 0; k < n; k++) {
+      const s = Math.round((pre + k * gap) * sr), w = x.subarray(s, s + Math.round(gap * 0.9 * sr));
+      let peak = 0; for (const v of w) peak = Math.max(peak, Math.abs(v));
+      if (peak < noise * 8) continue;
+      const th = Math.max(peak * 0.3, noise * 8);
+      const i = w.findIndex((v) => Math.abs(v) >= th);
+      if (i >= 0) offsets.push(i / sr * 1000);
+    }
+    offsets.sort((a, b) => a - b);
+    const spread = offsets.length ? offsets[offsets.length - 1] - offsets[0] : Infinity;
+    if (offsets.length < 6 || spread > 8) {
+      throw new Error(`Couldn't hear the test clicks clearly (${offsets.length} of ${n} found). Unplug the headphones or hold an earcup to the mic, turn the volume up, keep quiet, and try again.`);
+    }
+    const ms = offsets[Math.floor(offsets.length / 2)];
+    latency = { ms: Math.round(ms * 10) / 10, source: "measured", detail: `${offsets.length} of ${n} clicks, spread ${spread.toFixed(1)} ms` };
+    store.set(latency);
+    drawLatency();
+    setStage("Latency measured", "Plug the headphones back in before recording.", false);
+  } catch (e) { showError(e); setStage("Ready", "", false); }
+  busy = false; render();
+}
+
+async function loopBuffer(beat) {
+  if (!buffers.has(beat.index)) {
+    const r = await fetch(`/api/loop/${beat.index}.wav`);
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "couldn't load the loop");
+    buffers.set(beat.index, await ensureContext().decodeAudioData(await r.arrayBuffer()));
+    const source = r.headers.get("X-Loop-Source");
+    if (source && source !== S.settings.loop_source) { S.settings.loop_source = source; render(beat.index); }
+  }
+  return buffers.get(beat.index);
+}
+
+// ---------- the stage ----------
+function setStage(what, sub, live, beatOn = false, go = false) {
+  $("what").textContent = what; $("sub").textContent = sub || "";
+  $("stage").classList.toggle("live", !!live);
+  $("dot").className = "dot" + (go ? " go" : beatOn ? " beat" : "");
+}
+
+function animate(plan) {
+  cancelAnimationFrame(anim);
+  const tick = () => {
+    const t = ctx.currentTime, b = plan.beat, beatS = 60 / b.tempo_bpm;
+    const flash = (from) => ((t - from) % beatS) < 0.09;
+    if (t < plan.listen) setStage("Listen", `#${b.index + 1} at ${b.tempo_bpm} BPM`, false);
+    else if (t < plan.countIn) {
+      const play = Math.min(plan.plays, Math.floor((t - plan.listen) / b.loop_s) + 1);
+      setStage(`Listen: play ${play} of ${plan.plays}`, plan.kind === "click" ? "The click comes in after the second play." : "Then it's your turn, with no click.", false);
+    } else if (plan.kind === "free") {
+      setStage("Your turn: no click", "Beatbox the two bars at your own tempo, then press Stop.", true, false, true);
+      return;
+    } else if (t < plan.downbeat) {
+      const n = Math.floor((t - plan.countIn) / beatS) + 1;
+      setStage(`Count-in: ${n}`, "Come in on the next 1.", true, flash(plan.countIn));
+    } else if (t < plan.end) {
+      const k = Math.floor((t - plan.downbeat) / beatS), bar = Math.floor(k / b.bar_beats) + 1;
+      setStage(`Go: bar ${bar} of ${Math.round(b.beats / b.bar_beats)}`, `beat ${(k % b.bar_beats) + 1}`, true, flash(plan.downbeat), true);
+    } else { setStage("Finishing", "", true); return; }
+    anim = requestAnimationFrame(tick);
+  };
+  tick();
+}
+
+// ---------- recording ----------
+async function playOnly(beat) {
+  if (busy) return;
+  showError("");
+  try {
+    const buf = await loopBuffer(beat), t0 = ctx.currentTime + 0.1;
+    const s = ctx.createBufferSource(); s.buffer = buf; s.connect(ctx.destination); s.start(t0);
+    busy = true; render(beat.index);
+    animate({ beat, kind: "listen", plays: S.settings.plays, listen: t0 + S.settings.lead_in_s, countIn: t0 + buf.duration, downbeat: 0, end: 0 });
+    await new Promise((res) => (s.onended = res));
+  } catch (e) { showError(e); }
+  cancelAnimationFrame(anim); setStage("Ready", "", false);
+  busy = false; render();
+}
+
+async function record(beat, kind) {
+  if (busy) return;
+  if (!cap) { showError("Turn on the mic first."); return; }
+  showError("");
+  busy = true; render(beat.index);
+  try {
+    const buf = await loopBuffer(beat);
+    if (latency && latency.source === "estimated") { latency.ms = estimateLatency(); drawLatency(); }
+    const sr = ctx.sampleRate, L = (latency ? latency.ms : 0) / 1000;
+    const st = S.settings, beatS = 60 / beat.tempo_bpm, barS = beat.bar_beats * beatS;
+    const t0 = ctx.currentTime + 0.3;
+    const listen = t0 + st.lead_in_s;
+    const countIn = listen + st.plays * beat.loop_s;       // the bar line right after the second play
+    const downbeat = countIn + st.count_in_bars * barS;
+    const end = downbeat + beat.loop_s;
+    const src = ctx.createBufferSource(); src.buffer = buf; src.connect(ctx.destination); src.start(t0);
+    let job;
+    if (kind === "click") {
+      const clicks = Math.round((end - countIn) / beatS);
+      for (let k = 0; k < clicks; k++) click(countIn + k * beatS, k % beat.bar_beats === 0);
+      job = capture(Math.round(countIn * sr), Math.round((end + L + TAIL_S) * sr));
+    } else {
+      job = capture(Math.round(countIn * sr), Math.round((countIn + st.max_take_s) * sr));
+      stopRequested = () => job.stop();
+      $("stopBtn").classList.remove("hidden");
+    }
+    animate({ beat, kind, plays: st.plays, listen, countIn, downbeat, end });
+    const raw = await job.done;
+    cancelAnimationFrame(anim);
+    $("stopBtn").classList.add("hidden"); stopRequested = null;
+    setStage("Saving", "", false);
+    const params = new URLSearchParams({
+      beat: beat.index, kind, sample_rate: sr,
+      latency_ms: (L * 1000).toFixed(1), latency_source: latency ? latency.source : "estimated",
+      downbeat_s: kind === "click" ? (downbeat - countIn + L).toFixed(6) : "",
+    });
+    const row = await api(`/api/take?${params}`, { method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: raw.buffer });
+    S.takes.push(row);
+    const peak = Number(row.peak_dbfs);
+    const level = peak > -1 ? " It clipped: back off the mic a little and do another take." : peak < -40 ? " It's very quiet: check the mic." : "";
+    setStage(`Saved ${row.query_id}`, `Peak ${row.peak_dbfs} dBFS.${level} Listen back and mark it usable or not.`, false);
+  } catch (e) {
+    showError(e); setStage("Not saved", "", false);
+  }
+  $("stopBtn").classList.add("hidden"); stopRequested = null;
+  busy = false; render();
+}
+
+async function verdict(queryId, usable, notes) {
+  try {
+    const row = await api("/api/verdict", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query_id: queryId, usable, notes }) });
+    const i = S.takes.findIndex((t) => t.query_id === queryId);
+    if (i >= 0) S.takes[i] = row;
+    render();
+  } catch (e) { showError(e); }
+}
+
+// ---------- page ----------
+function takesFor(beat) {
+  return S.takes.filter((t) => t.participant_id === `team_${beat.member}` && t.source_clip_id === beat.clip_id && t.pattern_id === beat.pattern_id);
+}
+
+function render(activeIndex) {
+  if (!S) return;
+  const mine = S.beats.filter((b) => b.member === member);
+  const done = mine.filter((b) => takesFor(b).some((t) => t.mode === "click" && t.usable === "yes")).length;
+  $("tabs").innerHTML = S.members.map((m) => `<button data-m="${m}" class="${m === member ? "on" : ""}" ${busy ? "disabled" : ""} title="Member ${m}'s beats">${m}</button>`).join("")
+    + `<span class="progress">Member ${member}: ${done} of ${mine.length} beats have a usable click take. Count-in ${S.settings.count_in_bars} bar${S.settings.count_in_bars === 1 ? "" : "s"}; loops ${esc(S.settings.loop_source || "load on first play")}.</span>`;
+  $("list").innerHTML = mine.map((b) => {
+    const takes = takesFor(b);
+    return `<div class="beat${b.index === activeIndex ? " active" : ""}" data-i="${b.index}">
+      <div class="head">
+        <span class="num">${b.index + 1}</span>
+        <div class="info"><div class="t">${esc(b.style || b.source_performance)} · ${b.tempo_bpm} BPM</div>
+          <div class="m">${esc(b.source_performance)}, bar ${b.start_bar} · pattern ${esc(b.pattern_id)}${b.sounds_per_s ? ` · ${esc(b.sounds_per_s)} sounds/s` : ""}</div></div>
+        <div class="actions">
+          <button data-act="listen" ${busy ? "disabled" : ""}>Listen</button>
+          <button class="rec" data-act="click" ${busy || !cap ? "disabled" : ""}>Record with click</button>
+          <button data-act="free" ${busy || !cap ? "disabled" : ""}>Record free</button>
+        </div>
+      </div>
+      ${takes.length ? `<div class="takes">${takes.map((t) => `
+        <div class="take" data-q="${esc(t.query_id)}">
+          <span class="name">${esc(t.mode)} take ${esc(t.take)}</span>
+          <audio controls preload="none" src="/takes/${encodeURIComponent(t.query_id)}.wav"></audio>
+          <span class="${Number(t.peak_dbfs) > -1 ? "bad" : "m"}">peak ${esc(t.peak_dbfs)} dBFS</span>
+          <span class="verdict">Usable
+            <button class="yes ${t.usable === "yes" ? "on" : ""}" data-v="yes">Yes</button>
+            <button class="no ${t.usable === "no" ? "on" : ""}" data-v="no">No</button></span>
+          <input type="text" placeholder="Notes" value="${esc(t.notes)}" aria-label="Notes for ${esc(t.query_id)}">
+        </div>`).join("")}</div>` : ""}
+    </div>`;
+  }).join("");
+}
+
+$("tabs").addEventListener("click", (e) => {
+  const m = e.target.closest("button[data-m]");
+  if (m && !busy) { member = m.dataset.m; render(); }
+});
+$("list").addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  const take = btn.closest(".take");
+  if (take && btn.dataset.v) {
+    const t = S.takes.find((x) => x.query_id === take.dataset.q);
+    return verdict(take.dataset.q, t.usable === btn.dataset.v ? "" : btn.dataset.v, take.querySelector("input").value);
+  }
+  const beat = S.beats[Number(btn.closest(".beat").dataset.i)];
+  if (btn.dataset.act === "listen") playOnly(beat);
+  if (btn.dataset.act === "click") record(beat, "click");
+  if (btn.dataset.act === "free") record(beat, "free");
+});
+$("list").addEventListener("change", (e) => {
+  const take = e.target.closest(".take");
+  if (take && e.target.matches("input")) {
+    const t = S.takes.find((x) => x.query_id === take.dataset.q);
+    verdict(take.dataset.q, t.usable || "", e.target.value);
+  }
+});
+$("micBtn").onclick = startMic;
+$("measureBtn").onclick = measureLatency;
+$("stopBtn").onclick = () => stopRequested && stopRequested();
+
+api("/api/session").then((s) => { S = s; member = s.member; render(); }).catch(showError);
+</script>
+</body>
+</html>
