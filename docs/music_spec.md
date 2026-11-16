@@ -171,14 +171,23 @@ After the first version works, compare these rules against how the drummers in T
 
 | Item | Default | DECISION |
 |---|---|---|
-| Mic | Built-in laptop mic (matches AVP) | |
-| Click | Headphones only, at the loop's tempo | |
-| Takes per beat | One with click, one without | |
-| Beats per person | About 50, chosen by A from the test split | |
-| Enrollment sounds | 5 each of kick, snare, and hi-hat per person | |
-| Usable take | Keep imperfect takes; discard only if the beat is clearly lost or the audio is broken | |
+| Mic | Built-in laptop mic (matches AVP) | Default kept. The record page turns off the browser's echo cancellation, noise suppression and auto gain (2026-11-16) |
+| Click | Headphones only, at the loop's tempo | Wired headphones only. The loop plays twice, then a 1-bar count-in, then 2 bars with the click. The page measures the audio delay and lines each take up with the click (2026-11-16) |
+| Takes per beat | One with click, one without | Round 2 (the talk): one usable take with the click. Free-tempo takes after the talk (2026-11-16) |
+| Beats per person | About 50, chosen by A from the test split | Round 2: 10 each, 2 of them shared by all four, so 34 beats and 40 takes (`manifests/recording_beats_round2.csv`). About 50 each after the talk (2026-11-16) |
+| Enrollment sounds | 5 each of kick, snare, and hi-hat per person | After the talk; Round 2 doesn't need them |
+| Usable take | Keep imperfect takes; discard only if the beat is clearly lost or the audio is broken | Default kept (2026-11-16) |
 
 **Beat selection:** balance straight and swung, sparse and busy. Skip beats that are unreasonable to beatbox.
+
+**Round 2 beat selection (2026-11-16):**
+
+- **Playable:** every kick and snare survives the §5 speed limit (`beatbox.min_gap_ms`), so the performer can voice the kicks and snares as played and simplify only the hats, the way the fake queries do. 186 of the 893 test loops pass. Their kicks and snares come at a median 2.4 per second; real AVP improvisations run at 2.2 to 3.7 sounds per second (10th to 90th percentile).
+- **Feel:** straight means a triplet share of at most 20%, and swung means at least 70%. The beat picker's 50% cutoff labels them the same way. Beats in between are left out as ambiguous. Loose timing is at most 50%.
+- **Swung is a third, not half:** after these rules, the test split's swung beats come from only 3 performances: a 96 BPM rock shuffle, a 130 BPM Purdie shuffle, and a 141 BPM reggae groove. Everyone records each of them once, so 3 of each person's 10 beats are swung.
+- **Density** (the test split's thirds by sounds per loop): each person's straight beats are 3 sparse, 1 medium and 2 busy. Playable loops are mostly sparse, and no playable swung loop is busy. In all: 17 sparse, 9 medium, 8 busy.
+- **Variety:** nobody records two beats from the same performance or the same composed eval-session groove. 26 performances, 6 drummers, 80 to 141 BPM.
+- **Shared anchors:** everyone records drummer1/eval_session/6 bar 2 (hip-hop, 87 BPM, straight) and drummer8/session2/23 bar 48 (rock shuffle, 96 BPM), so people can be compared on the same beat.
 
 ---
 
@@ -205,3 +214,4 @@ After the first version works, compare these rules against how the drummers in T
 | 2026-11-10 | Decided (spec v0.6): mouth sounds never overlap; each is cut off at the next sound played (`beatbox.choke_at_next_sound`). Kit listen: no wrong articulations, so the note maps stand for v0 | A's listen to B's v0.5 batch; needed before the full generation | |
 | 2026-11-11 | Decided (spec v0.7): §6 sloppiness ranges kept as they are for v0; §5 speed limit (`beatbox.min_gap_ms`: kick and snare 120 ms, hats 250 ms) | Fake beatboxes were about twice as fast as real AVP and sounded impossible to beatbox | |
 | 2026-11-12 | Approved by ear: B's full v0.7 build (40,536 drum clips, 17,286 queries) is the v0 data freeze, spec unchanged. Known limitation kept for v0: the speed limit voices only 10% of the grooves' hats (§5) | Go/no-go listen to 33 query/drum pairs covering all 28 AVP participants and all 7 kits, each next to that person's real improvisation | |
+| 2026-11-16 | Decided for Round 2 (§8): 10 beats each with the click, 2 of them shared; the beat-selection rules in §8; the list is `manifests/recording_beats_round2.csv`. No YAML change: the YAML has no recording keys | Real-query session for the talk (presentation plan); the test split has only 3 playable swung performances | |
