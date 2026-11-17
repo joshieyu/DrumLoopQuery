@@ -14,7 +14,9 @@
 needs: id, pattern_id, dualized_pattern_id, split, kind ("library", "beatbox", or
 "tap"), source ("library" for loops; the query manifest's source otherwise),
 audio_path (absolute), and group (kit_id for loops, participant_id for queries).
-Relative audio paths are read from `audio_root` (default: the repo root).
+Relative audio paths are read from `audio_root` (default: the repo root). A query
+manifest needs only the columns in QUERY_REQUIRED: real recordings (team takes,
+TapTamDrum taps) have no sloppiness settings, so those columns may be left out.
 
 Held-out kits come from the music spec: a kit whose rendering.kits split is "test"
 is never used for training or validation, only for scoring (README §5.2).
@@ -48,7 +50,7 @@ LIBRARY_COLUMNS = [
     "midi_path",
     "source_performance",
 ]
-QUERY_COLUMNS = [
+QUERY_COLUMNS = [  # the full README §12 query manifest
     "query_id",
     "pattern_id",
     "dualized_pattern_id",
@@ -62,6 +64,13 @@ QUERY_COLUMNS = [
     "drop_prob",
     "snr_db",
     "audio_path",
+]
+# What load_clips reads. The others (tempo and the sloppiness settings) describe how a
+# synthetic query was made; real recordings (team takes, TapTamDrum taps) may lack them.
+QUERY_REQUIRED = [
+    c
+    for c in QUERY_COLUMNS
+    if c not in ("tempo_bpm", "jitter_ms", "drift_pct", "drop_prob", "snr_db")
 ]
 QUERY_TYPES = ("beatbox", "tap")
 PRACTICE_SOURCE = "practice"  # src/models/practice.py's stand-in queries (their "speaker" is a kit)
@@ -102,7 +111,7 @@ def load_clips(
         )
     ]
     if query_csv is not None:
-        queries = _read_manifest(query_csv, QUERY_COLUMNS)
+        queries = _read_manifest(query_csv, QUERY_REQUIRED)
         bad = sorted(set(queries.query_type) - set(QUERY_TYPES))
         if bad:
             raise ValueError(f"{query_csv}: unknown query_type {bad}; expected {QUERY_TYPES}")

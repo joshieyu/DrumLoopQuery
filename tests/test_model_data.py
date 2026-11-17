@@ -104,11 +104,23 @@ def test_load_clips_joins_library_and_queries(tmp_path):
     assert all(p.startswith(str(tmp_path)) for p in clips.audio_path)
 
 
+def test_real_recordings_need_no_sloppiness_columns(tmp_path):
+    lib, qry = manifests(tmp_path)
+    table = pd.read_csv(qry).drop(
+        columns=["tempo_bpm", "jitter_ms", "drift_pct", "drop_prob", "snr_db"]
+    )
+    table["source"] = "team"
+    table.to_csv(tmp_path / "team.csv", index=False)
+    clips = load_clips(lib, tmp_path / "team.csv", audio_root=tmp_path)
+    assert set(clips[clips.kind != "library"].source) == {"team"}
+    assert len(clips) == 6 + 6
+
+
 def test_manifest_problems_are_reported(tmp_path):
     lib, qry = manifests(tmp_path)
-    table = pd.read_csv(qry).drop(columns=["snr_db"])
+    table = pd.read_csv(qry).drop(columns=["participant_id"])
     table.to_csv(tmp_path / "bad.csv", index=False)
-    with pytest.raises(ValueError, match="missing columns"):
+    with pytest.raises(ValueError, match=r"missing columns \['participant_id'\]"):
         load_clips(lib, tmp_path / "bad.csv")
 
     table = pd.read_csv(qry)
