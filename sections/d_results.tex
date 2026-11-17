@@ -2,8 +2,10 @@
 % D: Evaluation, results, what's left   (Dylan, ~2:15)
 % ============================================================
 % Scaffold: the setup below follows docs/presentation_plan.md and README sections 7-9.
-% Fill the red ? cells with Round 1 (Thu Nov 12) and Round 2 (Mon Nov 16) numbers,
-% and cut any slide we have no result for. All numbers come from src/eval/evaluate.py.
+% Numbers come from src/eval/evaluate.py (intervals resample the 5 test people, as on
+% Anika's front-end figure) and src/eval/compare.py (paired tests over source loops).
+% Red ? cells and TODOs left on purpose: the real-beatbox column (needs our recordings)
+% and the pattern-type chart (Joshua).
 \section{Experiments and Results}
 \presenter{Dylan}
 
@@ -29,11 +31,11 @@
         \item \textbf{Held out:} GMD test patterns (893 loops), 2 test kits, 5 AVP test people,
               and our own beatboxes.
         \item \textbf{Answer key:} same pattern ID. Each query has one right loop per test kit,
-              among \todo{library size} clips.
+              among 1,786 clips.
         \item \textbf{Metrics:} mean reciprocal rank (MRR, main), Hit@1/5/10, mAP,
               bootstrap 95\% confidence intervals.
-        \item \textbf{Compared with:} random chance and an onset baseline (no learning).
-              \todo{CLAP if we get to it}
+        \item \textbf{Compared with:} chance, CLAP, an onset baseline (no learning), and
+              ``transcribe, then match'', with paired tests for differences.
       \end{itemize}
     \column{0.44\textwidth}
       \centering
@@ -51,13 +53,22 @@
   \end{columns}
 
   \note{
-    \todo{D: speaker notes.}
+    Everything in the test is new to the model: new rhythms, new drum kits and new voices.
+    The library for the test is 1,786 clips, which is 893 held-out loops played on two
+    held-out kits. A query's right answers are the clips with the same rhythm, one per kit,
+    so about two right answers hidden among 1,786. We rank the whole library for each query.
+    The main score is reciprocal rank: if the right loop comes third, that query scores one
+    third, and we average over all queries. Hit@10 is how often a right loop is in the top
+    ten. Random guessing scores 0.008. We compare against random chance, CLAP, an onset
+    baseline that needs no learning, and a transcribe-then-match baseline, which is the
+    classic approach rebuilt. The error bars resample the five test people. To say whether
+    two systems really differ, we use paired tests across loops.
   }
 \end{frame}
 
 % ------------------------------------------------------------
 \begin{frame}{Results so far}
-  \slidepoint{\todo{one sentence: the headline result}}
+  \slidepoint{Our encoders match the best hand-built baselines; CLAP stays at chance.}
 
   \centering
   \begin{tabular}{lcccc}
@@ -66,40 +77,68 @@
     \cmidrule(lr){2-4}\cmidrule(lr){5-5}
     System & MRR (95\% CI) & Hit@1 & Hit@10 & MRR \\
     \midrule
-    Random chance & \tbd & \tbd & \tbd & \tbd \\
-    Onset baseline & \tbd & \tbd & \tbd & \tbd \\
-    Our encoder & \tbd & \tbd & \tbd & \tbd \\
+    Random chance & 0.008 & 0.1\% & 1.1\% & \tbd \\
+    CLAP & 0.012 (0.010--0.015) & 0.2\% & 2.1\% & \tbd \\
+    Onset baseline (3 bands) & 0.322 (0.286--0.359) & 22.5\% & 51.7\% & \tbd \\
+    Transcribe, then match & 0.298 (0.238--0.361) & 23.5\% & 44.1\% & \tbd \\
+    Our encoder (R1) & 0.294 (0.284--0.312) & 16.7\% & 56.9\% & \tbd \\
     \bottomrule
   \end{tabular}
 
-  \vspace{0.35cm}
-  \raggedright\small
+  \vspace{0.1cm}
+  \raggedright\footnotesize
   \begin{itemize}
-    \item \todo{number of fake and real queries; which front-end ``our encoder'' is}
+    \item 1,786 fake queries, 5 held-out people. Our encoder is R1 (onset input); R3 is on the
+          next slide. The baselines are told the tempo; the encoders see it only through clip
+          length. Intervals resample the 5 people, so they are rough.
+    \item Across loops, the onset baseline beats R3 ($p=0.005$) but not R1 ($p=0.16$);
+          the encoders and transcription are tied.
     \item \todo{what the gap between fake and real beatboxes tells us}
   \end{itemize}
 
   \note{
-    \todo{D: speaker notes.} Round 1 numbers Thu Nov 12; real beatboxes Mon Nov 16.
+    On fake beatboxes from five people the model never heard, our encoder scores about 0.29.
+    The right loop is in the top ten for more than half of the queries, against about one
+    percent for random guessing. The hand-built baselines do just as well: the onset baseline
+    with three frequency bands scores 0.32 and transcribe-then-match scores 0.30. Our paired
+    tests say the encoders are tied with transcription, and the only clear difference is that
+    the onset baseline beats the log-mel encoder. So the answer to our research question, so
+    far, is that learned rhythm embeddings match transcribe-then-match but do not beat it.
+    CLAP sits at chance, even the music version: it hears what a sound is, not where the hits
+    land. Two caveats: the onset baseline and transcription are told the tempo, while the encoders
+    only see it through clip length, and with only five test people these intervals are rough. The real beatbox column is still to come.
   }
 \end{frame}
 
 % ------------------------------------------------------------
 % Ablations. Keep whichever we have by Mon Nov 16 and cut the other.
 \begin{frame}{What changes the result}
-  \slidepoint{\todo{one sentence per finding}}
+  \slidepoint{Input choice barely matters; messy queries hurt the hand-built systems most.}
 
   \begin{columns}[T,onlytextwidth]
     \column{0.48\textwidth}
       \centering\textbf{Front-end}\par\smallskip
-      \figtodo[4.4cm]{MRR for onset-envelope (R1) vs.\ log-mel (R3) input, fake and real beatboxes (C)}
+      \slidefig[4.0cm]{c_frontends.pdf}\par\smallskip
+      {\footnotesize R1 and R3 are tied ($p=0.78$).\par}
     \column{0.48\textwidth}
       \centering\textbf{Messier queries}\par\smallskip
-      \figtodo[4.4cm]{MRR as dropped hits and noise increase, encoder vs.\ onset baseline (stretch)}
+      \slidefig[4.0cm]{messier_queries.pdf}\par\smallskip
+      {\footnotesize Offsets up to 20 ms did nothing. Jitter hurt the onset baseline, noise hurt
+      transcription, the encoders showed no significant change. Voice mode flipped the
+      hand-built systems.\par}
   \end{columns}
 
   \note{
-    \todo{D and C: speaker notes.}
+    Left: the two front-ends we compared, same encoder and training. Three-band onsets and
+    log-mel are tied, so on this test the input choice makes no clear difference.
+    Right: we binned the fake queries by how messy they were. Timing offsets up to 20
+    milliseconds did nothing to any system. Jitter hurt the onset baseline, and noise hurt
+    transcription. The encoders showed no significant change from any of the settings. The
+    biggest effect was the voice mode, the two ways the AVP people recorded: in personal mode
+    the onset baseline scores about 0.10 higher and transcription about 0.15 lower than in
+    fixed mode, while the encoders barely move. Part of the transcription gap is its hit
+    detector finding fewer hits in personal mode. We do not yet know why the onset baseline
+    goes the other way.
   }
 \end{frame}
 
@@ -107,32 +146,51 @@
 % Qualitative. Joshua (A) prepares the "which patterns fail" breakdown (a small E8)
 % and can present this slide if that flows better.
 \begin{frame}{What it gets right and wrong}
-  \slidepoint{\todo{one sentence: the kind of rhythm it confuses}}
+  \slidepoint{The right loop is usually in the top ten, but rarely first.}
 
   \begin{columns}[T,onlytextwidth]
     \column{0.55\textwidth}
-      \figtodo[4.6cm]{one real beatbox query and its top 5 loops as 3-voice grids, right answer highlighted (play it?)}
+      \footnotesize
+      \textbf{Gets right}
+      \begin{itemize}
+        \item Top 10 for 44--57\% of fake beatboxes with the four best systems (chance: 1.1\%).
+        \item Encoders stay steady across timing error, noise, dropped hits and voice mode.
+      \end{itemize}
+      \textbf{Gets wrong}
+      \begin{itemize}
+        \item First place only 16--24\% of the time.
+        \item CLAP hears meaning, not rhythm: chance level.
+        \item Transcription finds 75\% of voiced hits in fixed mode, 67\% in personal mode.
+        \item Queries are sparse: about 15 of a loop's 34 hits are voiced.
+      \end{itemize}
     \column{0.41\textwidth}
       \figtodo[4.6cm]{MRR split by pattern type: straight vs.\ swung, sparse vs.\ busy (A)}
   \end{columns}
 
   \note{
-    \todo{speaker notes.}
+    What works: the four best systems find the right loop in the top ten for 44 to 57
+    percent of fake beatboxes, against about one percent by chance, and the encoders hold
+    steady as the queries get messier. What does not: the right loop is first only about one
+    time in five, CLAP cannot hear rhythm at all, and transcription loses hits, especially
+    for personal-mode voices. Part of the ceiling is the queries themselves: a fake
+    beatboxer voices only about 15 of the 34 hits in a typical loop, so even a perfect
+    system sees a sparse version of the rhythm. Joshua's breakdown by pattern type will show
+    which kinds of rhythm get confused.
   }
 \end{frame}
 
 % ------------------------------------------------------------
 \begin{frame}{What's left}
-  \slidepoint{The full plan answers three questions; the talk covers a first pass at the first one.}
+  \slidepoint{Questions to be answered in the next few weeks:}
 
   \begin{columns}[T,onlytextwidth]
     \column{0.32\textwidth}
       \begin{block}{Embedding vs.\ transcription?}
         \footnotesize
         \begin{itemize}
-          \item The ``transcribe, then match'' baseline: the 2004 approach, rebuilt carefully
-          \item CLAP baseline
-          \item Tap queries, and real taps from TapTamDrum
+          \item Real beatboxes from our own recordings
+          \item Tap queries with real desk knocks; the first TapTamDrum run used placeholder knocks
+          \item Messiness one setting at a time
         \end{itemize}
       \end{block}
     \column{0.32\textwidth}
@@ -159,6 +217,10 @@
   Also: electronic and lo-fi kits, other tempos, and tempo drift, swing drift and mic EQ in the fake beatboxes.\par}
 
   \note{
-    \todo{D: speaker notes.}
+    The CLAP and transcribe-then-match baselines are done. What is left for the first
+    question is the test that matters most: our own real beatboxes, and real taps with
+    real desk knocks. After that, more front-ends, full recording sessions, and whether a
+    short enrollment, a few of a new user's own kicks, snares and hats, helps.
   }
 \end{frame}
+
