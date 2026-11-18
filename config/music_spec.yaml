@@ -62,6 +62,7 @@ decided:
   - taps.low
   - taps.high
   - taps.simultaneous
+  - pattern_types                               # 2026-11-17: spec §8 Round 2 rules, for the talk's chart
 
 # The rhythm voices, in grid row order.
 voices: [kick, snare, hats]
@@ -292,3 +293,18 @@ taps:
   low: [kick]
   high: [snare, hats]
   simultaneous: low                 # one tap on this hand when both hands coincide
+
+# --- Spec §8: pattern types ---------------------------------------------------
+# Kinds of rhythm, for breaking results down by type: the Round 2 beat-selection rules,
+# reused for the talk's pattern-type chart (tools/pattern_types.py). Analysis only:
+# nothing here changes the loops, the queries or the answer key.
+pattern_types:
+  # Feel, from the loop's off-beat sounds (grid steps with a hit that aren't on a beat).
+  # triplet share = off-beats on triplet steps / off-beats on 16th or triplet steps;
+  # loose share = off-beats on neither / all off-beats.
+  straight_max_triplet_share: 0.20  # at most this: straight
+  swung_min_triplet_share: 0.70     # at least this: swung; in between: no feel
+  max_loose_share: 0.50             # looser than this: no feel
+  # Density, from sounds per loop (grid steps with any hit): the GMD test split's thirds.
+  sparse_below_sounds: 23           # fewer sounds than this: sparse
+  busy_from_sounds: 30              # this many or more: busy; in between: medium

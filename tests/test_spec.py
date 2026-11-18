@@ -5,7 +5,15 @@ import copy
 import pytest
 import yaml
 
-from src.music.spec import DEFAULT_PATH, ClipAudio, KitNote, SpecError, load_spec, parse_spec
+from src.music.spec import (
+    DEFAULT_PATH,
+    ClipAudio,
+    KitNote,
+    PatternTypes,
+    SpecError,
+    load_spec,
+    parse_spec,
+)
 from tools.inventory.gmd import GMD_NOTES
 
 
@@ -283,5 +291,56 @@ def test_undecided_lists_defaults_only():
     ],
 )
 def test_invalid_specs_are_rejected(raw, edit, message):
+    with pytest.raises(SpecError, match=message):
+        parse_spec(broken(raw, edit))
+
+
+def test_2026_11_17_pattern_types():
+    spec = load_spec()
+    pt = spec.pattern_types  # spec §8: the Round 2 beat-selection rules
+    assert (pt.straight_max_triplet_share, pt.swung_min_triplet_share) == (0.2, 0.7)
+    assert pt.max_loose_share == 0.5
+    assert (pt.sparse_below_sounds, pt.busy_from_sounds) == (23, 30)
+    assert spec.is_decided("pattern_types.busy_from_sounds")
+
+
+RULES = PatternTypes(0.2, 0.7, 0.5, sparse_below_sounds=23, busy_from_sounds=30)
+
+
+@pytest.mark.parametrize(
+    "straight, triplet, other, feel",
+    [
+        (10, 0, 0, "straight"),
+        (8, 2, 0, "straight"),  # 20% on triplet steps is still straight
+        (7, 3, 0, None),  # in between
+        (3, 7, 0, "swung"),  # 70% is swung
+        (0, 6, 0, "swung"),
+        (0, 0, 0, "straight"),  # no off-beats at all
+        (5, 0, 5, "straight"),  # half the off-beats loose is allowed
+        (4, 0, 5, None),  # more than half is too loose to say
+        (0, 0, 3, None),
+    ],
+)
+def test_pattern_feel(straight, triplet, other, feel):
+    assert RULES.feel(straight, triplet, other) == feel
+
+
+def test_pattern_density_edges():
+    assert [RULES.density(n) for n in (22, 23, 29, 30)] == ["sparse", "medium", "medium", "busy"]
+
+
+@pytest.mark.parametrize(
+    "edit, message",
+    [
+        (lambda r: r["pattern_types"].update(straight_max_triplet_share=0.7), "must be below"),
+        (lambda r: r["pattern_types"].update(swung_min_triplet_share=1.2), "outside"),
+        (lambda r: r["pattern_types"].update(max_loose_share=-0.1), "outside"),
+        (lambda r: r["pattern_types"].update(sparse_below_sounds=31), "must not be above"),
+        (lambda r: r["pattern_types"].update(busy_from_sounds=29.5), "integer"),
+        (lambda r: r["pattern_types"].pop("max_loose_share"), "missing key"),
+        (lambda r: r.pop("pattern_types"), "missing key"),
+    ],
+)
+def test_invalid_pattern_types_are_rejected(raw, edit, message):
     with pytest.raises(SpecError, match=message):
         parse_spec(broken(raw, edit))

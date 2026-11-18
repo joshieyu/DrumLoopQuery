@@ -165,6 +165,40 @@ class Taps:
 
 
 @dataclass(frozen=True)
+class PatternTypes:
+    """Spec §8: a loop's feel and density, for breaking results down by kind of rhythm."""
+
+    straight_max_triplet_share: float
+    swung_min_triplet_share: float
+    max_loose_share: float
+    sparse_below_sounds: int
+    busy_from_sounds: int
+
+    def feel(self, straight_off: int, triplet_off: int, other_off: int) -> str | None:
+        """'straight', 'swung', or None when the loop is in between or too loose to say.
+
+        Counts are the loop's off-beat sounds on 16th steps, on triplet steps, and on
+        neither (as `tools.listen.beat_picker.loop_stats` gives them).
+        """
+        on_grid = straight_off + triplet_off
+        off = on_grid + other_off
+        if off and other_off / off > self.max_loose_share:
+            return None
+        share = triplet_off / on_grid if on_grid else 0.0
+        if share <= self.straight_max_triplet_share:
+            return "straight"
+        if share >= self.swung_min_triplet_share:
+            return "swung"
+        return None
+
+    def density(self, sounds: int) -> str:
+        """'sparse', 'medium' or 'busy', from the loop's grid steps with any hit."""
+        if sounds < self.sparse_below_sounds:
+            return "sparse"
+        return "busy" if sounds >= self.busy_from_sounds else "medium"
+
+
+@dataclass(frozen=True)
 class MusicSpec:
     version: str
     voices: tuple[str, ...]
@@ -175,6 +209,7 @@ class MusicSpec:
     beatbox: Beatbox
     sloppiness: Sloppiness
     taps: Taps
+    pattern_types: PatternTypes
     decided: frozenset[str]
     units: tuple[str, ...]  # every decision-sized key, e.g. "same_rhythm.flam_merge_ms"
     path: Path
@@ -381,7 +416,7 @@ def _exists(raw: dict, dotted: str) -> bool:
     return True
 
 
-SECTIONS = ["same_rhythm", "loops", "rendering", "beatbox", "sloppiness", "taps"]
+SECTIONS = ["same_rhythm", "loops", "rendering", "beatbox", "sloppiness", "taps", "pattern_types"]
 TOP = ["version", "decided", "voices", "drum_map", *SECTIONS]
 
 
@@ -552,6 +587,29 @@ def parse_spec(raw: Any, path: Path = DEFAULT_PATH) -> MusicSpec:
         raise SpecError(f"taps: low and high must split the voices {list(voices)} between them")
     taps = Taps(low, high, _choice(t["simultaneous"], ("low", "high"), "taps.simultaneous"))
 
+    p = _keys(
+        raw["pattern_types"],
+        [f.name for f in PatternTypes.__dataclass_fields__.values()],
+        "pattern_types",
+    )
+    pattern_types = PatternTypes(
+        straight_max_triplet_share=_num(
+            p["straight_max_triplet_share"], "pattern_types.straight_max_triplet_share", 0, 1
+        ),
+        swung_min_triplet_share=_num(
+            p["swung_min_triplet_share"], "pattern_types.swung_min_triplet_share", 0, 1
+        ),
+        max_loose_share=_num(p["max_loose_share"], "pattern_types.max_loose_share", 0, 1),
+        sparse_below_sounds=_int(p["sparse_below_sounds"], "pattern_types.sparse_below_sounds", 1),
+        busy_from_sounds=_int(p["busy_from_sounds"], "pattern_types.busy_from_sounds", 1),
+    )
+    if pattern_types.straight_max_triplet_share >= pattern_types.swung_min_triplet_share:
+        raise SpecError(
+            "pattern_types: straight_max_triplet_share must be below swung_min_triplet_share"
+        )
+    if pattern_types.sparse_below_sounds > pattern_types.busy_from_sounds:
+        raise SpecError("pattern_types: sparse_below_sounds must not be above busy_from_sounds")
+
     decided = _str_list(raw["decided"] or [], "decided")
     missing = [d for d in decided if not _exists(raw, d)]
     if missing:
@@ -569,6 +627,7 @@ def parse_spec(raw: Any, path: Path = DEFAULT_PATH) -> MusicSpec:
         beatbox=beatbox,
         sloppiness=sloppiness,
         taps=taps,
+        pattern_types=pattern_types,
         decided=frozenset(decided),
         units=tuple(units),
         path=path,
