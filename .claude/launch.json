@@ -12,6 +12,12 @@
       "runtimeExecutable": ".venv/bin/python",
       "runtimeArgs": ["-m", "http.server", "8766", "--bind", "127.0.0.1", "--directory", "results"],
       "port": 8766
+    },
+    {
+      "name": "record",
+      "runtimeExecutable": ".venv/bin/python",
+      "runtimeArgs": ["-m", "tools.listen.record_session", "--beats", "manifests/recording_beats_round2.csv", "--member", "A"],
+      "port": 8770
     }
   ]
 }
