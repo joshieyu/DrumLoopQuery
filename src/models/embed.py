@@ -223,6 +223,13 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--testset", required=True, help="e.g. practice_test")
     parser.add_argument("--device", default="auto")
     parser.add_argument("--n-boot", type=int, default=10_000)
+    parser.add_argument(
+        "--bootstrap",
+        choices=["speakers", "queries"],
+        default="speakers",
+        help="what the 95%% intervals resample: whole speakers (default), or single queries "
+        "(for a set with very few speakers, where resampling speakers says little)",
+    )
     parser.add_argument("--audio-root", type=Path, default=DEFAULT_AUDIO_ROOT)
     args = parser.parse_args(argv)
     if (args.relevance is None) == (args.query_kit is None):
@@ -257,9 +264,17 @@ def main(argv: list[str] | None = None) -> None:
         (out / "relevance.json").write_text(json.dumps(answer_key, indent=1) + "\n")
     table, counts = evaluate(path, answer_key)
     # Like D's command line with --query-manifest: the bootstrap resamples whole speakers,
-    # since one person's queries aren't independent. Loops-as-queries count one by one.
-    speaker = dict(zip(queries.id, queries.group, strict=True)) if args.query_kit is None else {}
+    # since one person's queries aren't independent. Loops-as-queries count one by one, and
+    # so does every query with --bootstrap queries.
+    by_speaker = args.query_kit is None and args.bootstrap == "speakers"
+    speaker = dict(zip(queries.id, queries.group, strict=True)) if by_speaker else {}
     groups = [speaker.get(q) or q for q in table.query_id]
+    n_speakers = len({speaker[q] for q in table.query_id if q in speaker})
+    if by_speaker and n_speakers < 5:
+        print(
+            f"warning: only {n_speakers} speakers, so intervals that resample speakers say "
+            "little; consider --bootstrap queries"
+        )
     summary = summarize(table, groups=groups, n_boot=args.n_boot)
     table.to_csv(out / "per_query.csv", index=False)
     result = {
@@ -270,7 +285,7 @@ def main(argv: list[str] | None = None) -> None:
         "library_kits": sorted(library.group.unique()),
         "query_kit": args.query_kit,
         "query_source": args.query_source,
-        "bootstrap": "resamples speakers" if args.query_kit is None else "resamples queries",
+        "bootstrap": "resamples speakers" if by_speaker else "resamples queries",
         "answer_key": str(args.relevance) if args.relevance else "same-rhythm rule (cross-kit)",
         **counts,
         "metrics": summary,
