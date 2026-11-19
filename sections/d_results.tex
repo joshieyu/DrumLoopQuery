@@ -68,7 +68,7 @@
 
 % ------------------------------------------------------------
 \begin{frame}{Results so far}
-  \slidepoint{Our encoders match the best hand-built baselines; CLAP stays at chance.}
+  \slidepoint{Encoders match the best baselines on fake beatboxes, and hold up better on real ones.}
 
   \centering
   \begin{tabular}{lcccc}
@@ -77,23 +77,22 @@
     \cmidrule(lr){2-4}\cmidrule(lr){5-5}
     System & MRR (95\% CI) & Hit@1 & Hit@10 & MRR \\
     \midrule
-    Random chance & 0.008 & 0.1\% & 1.1\% & \tbd \\
-    CLAP & 0.012 (0.010--0.015) & 0.2\% & 2.1\% & \tbd \\
-    Onset baseline (3 bands) & 0.322 (0.286--0.359) & 22.5\% & 51.7\% & \tbd \\
-    Transcribe, then match & 0.298 (0.238--0.361) & 23.5\% & 44.1\% & \tbd \\
-    Our encoder (R1) & 0.294 (0.284--0.312) & 16.7\% & 56.9\% & \tbd \\
+    Random chance & 0.008 & 0.1\% & 1.1\% & 0.008 \\
+    CLAP & 0.012 (0.010--0.015) & 0.2\% & 2.1\% & 0.007 \\
+    Onset baseline (3 bands) & 0.322 (0.286--0.359) & 22.5\% & 51.7\% & 0.058 \\
+    Transcribe, then match & 0.298 (0.238--0.361) & 23.5\% & 44.1\% & 0.077 \\
+    Our encoder (R1) & 0.294 (0.284--0.312) & 16.7\% & 56.9\% & 0.167 \\
     \bottomrule
   \end{tabular}
 
   \vspace{0.1cm}
   \raggedright\footnotesize
   \begin{itemize}
-    \item 1,786 fake queries, 5 held-out people. Our encoder is R1 (onset input); R3 is on the
-          next slide. The baselines are told the tempo; the encoders see it only through clip
-          length. Intervals resample the 5 people, so they are rough.
-    \item Across loops, the onset baseline beats R3 ($p=0.005$) but not R1 ($p=0.16$);
-          the encoders and transcription are tied.
-    \item \todo{what the gap between fake and real beatboxes tells us}
+    \item 1,786 fake queries, 5 held-out people; our encoder is R1. Baselines are told the
+          tempo, encoders see it only through clip length. Intervals are rough (5 people).
+    \item Across loops, the onset baseline beats R3 ($p=0.005$), not R1 ($p=0.16$).
+    \item \textbf{Real beatboxes:} 14 recordings, 12 rhythms, 2 of us. Right loop in the top 10
+          for 7 (R1), 4 (onset), 1 (transcription).
   \end{itemize}
 
   \note{
@@ -106,20 +105,27 @@
     far, is that learned rhythm embeddings match transcribe-then-match but do not beat it.
     CLAP sits at chance, even the music version: it hears what a sound is, not where the hits
     land. Two caveats: the onset baseline and transcription are told the tempo, while the encoders
-    only see it through clip length, and with only five test people these intervals are rough. The real beatbox column is still to come.
+    only see it through clip length, and with only five test people these intervals are rough. On our own recordings, 14 takes of 12 rhythms from two of us, the picture changes: the onset
+    baseline puts the right loop in the top ten for 4 of 14 and transcription for 1 of 14,
+    and CLAP for none. Our R1 encoder does better, with the right loop in the top ten for 7 of 14
+    and a score of 0.17 against 0.06 and 0.08 for the baselines; R3 is at 0.05, with 1 of 14.
+    Every system is far below its fake-beatbox score, even allowing for how small this set is, and
+    14 takes from two people is too few to call a winner. We have not yet tested why the
+    drop; real mouths are less regular than our simulated ones, and our laptop microphones differ
+    from the studio recordings the models were built on.
   }
 \end{frame}
 
 % ------------------------------------------------------------
 % Ablations. Keep whichever we have by Mon Nov 16 and cut the other.
 \begin{frame}{What changes the result}
-  \slidepoint{Input choice barely matters; messy queries hurt the hand-built systems most.}
+  \slidepoint{Input choice only matters on real voices; messy queries hurt the hand-built systems most.}
 
   \begin{columns}[T,onlytextwidth]
     \column{0.48\textwidth}
       \centering\textbf{Front-end}\par\smallskip
       \slidefig[4.0cm]{c_frontends.pdf}\par\smallskip
-      {\footnotesize R1 and R3 are tied ($p=0.78$).\par}
+      {\footnotesize Tied on fake beatboxes ($p=0.78$); on our 14 real takes R1 is ahead.\par}
     \column{0.48\textwidth}
       \centering\textbf{Messier queries}\par\smallskip
       \slidefig[4.0cm]{messier_queries.pdf}\par\smallskip
@@ -129,8 +135,10 @@
   \end{columns}
 
   \note{
-    Left: the two front-ends we compared, same encoder and training. Three-band onsets and
-    log-mel are tied, so on this test the input choice makes no clear difference.
+    Left: the two front-ends we compared, same encoder and training. On fake beatboxes, three-band
+    onsets and log-mel are tied. On our 14 real takes, onsets score 0.17 and log-mel 0.05,
+    which suggests the timbre-light input transfers to real voices better, though 14 takes from
+    two people is too few to be sure.
     Right: we binned the fake queries by how messy they were. Timing offsets up to 20
     milliseconds did nothing to any system. Jitter hurt the onset baseline, and noise hurt
     transcription. The encoders showed no significant change from any of the settings. The
@@ -146,7 +154,7 @@
 % Qualitative. Joshua (A) prepares the "which patterns fail" breakdown (a small E8)
 % and can present this slide if that flows better.
 \begin{frame}{What it gets right and wrong}
-  \slidepoint{The right loop is usually in the top ten, but rarely first.}
+  \slidepoint{Usually top ten on fake beatboxes; real ones are much harder, least so for R1.}
 
   \begin{columns}[T,onlytextwidth]
     \column{0.55\textwidth}
@@ -158,13 +166,14 @@
       \end{itemize}
       \textbf{Gets wrong}
       \begin{itemize}
-        \item First place only 16--24\% of the time.
+        \item First place only 16--24\% of the time on fake beatboxes.
+        \item Real beatboxes are much harder: top 10 for 7 of 14 (R1), 4 (onset), 1 (transcription).
         \item CLAP hears meaning, not rhythm: chance level.
-        \item Transcription finds 75\% of voiced hits in fixed mode, 67\% in personal mode.
-        \item Queries are sparse: about 15 of a loop's 34 hits are voiced.
+        \item Fake queries are sparse: about 15 of a loop's 34 hits are voiced.
       \end{itemize}
     \column{0.41\textwidth}
-      \figtodo[4.6cm]{MRR split by pattern type: straight vs.\ swung, sparse vs.\ busy (A)}
+      \slidefig[3.6cm]{pattern_types.pdf}\par
+      {\scriptsize Swung: 30\%+ of hits on triplet steps (221 of 892 rhythms). Busy: more than the median 34 hits.\par}
   \end{columns}
 
   \note{
@@ -172,16 +181,20 @@
     percent of fake beatboxes, against about one percent by chance, and the encoders hold
     steady as the queries get messier. What does not: the right loop is first only about one
     time in five, CLAP cannot hear rhythm at all, and transcription loses hits, especially
-    for personal-mode voices. Part of the ceiling is the queries themselves: a fake
+    for personal-mode voices, finding about 75 percent of voiced hits in fixed mode but 67 in
+    personal mode. Part of the ceiling is the queries themselves: a fake
     beatboxer voices only about 15 of the 34 hits in a typical loop, so even a perfect
-    system sees a sparse version of the rhythm. Joshua's breakdown by pattern type will show
-    which kinds of rhythm get confused.
+    system sees a sparse version of the rhythm. On our own real recordings the baselines do
+    much worse, finding the right loop in the top ten for 4 of 14 and 1 of 14, and R1 does better, 7 of 14. By rhythm type, the encoders and the onset baseline barely
+    change between sparse and busy loops, but transcription falls from 0.38 on sparse loops to 0.22 on busy
+    ones, since it has to find every hit. Swung loops are not harder for the baselines, and the encoders
+    do a little worse on them, 0.26 against 0.29 to 0.31 on straight loops.
   }
 \end{frame}
 
 % ------------------------------------------------------------
 \begin{frame}{What's left}
-  \slidepoint{Questions to be answered in the next few weeks:}
+  \slidepoint{The full plan answers three questions; the talk covers a first pass at the first one.}
 
   \begin{columns}[T,onlytextwidth]
     \column{0.32\textwidth}
@@ -222,5 +235,5 @@
     real desk knocks. After that, more front-ends, full recording sessions, and whether a
     short enrollment, a few of a new user's own kicks, snares and hats, helps.
   }
-\end{frame}
 
+\end{frame}
