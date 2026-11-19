@@ -2,7 +2,8 @@
 % C: Encoder and contrastive training   (Anika, ~2:00)
 % ============================================================
 % Filled in with the v0.7 numbers (Nov 13-15). The test results are on Dylan's slides.
-% Needs figures/c_training_curves.pdf (upload it to the figures/ folder on Overleaf).
+% Needs figures/c_inputs.pdf and figures/c_training_curves.pdf (upload both to the
+% figures/ folder on Overleaf). Speaker notes are about 30 seconds per slide.
 \section{Method: Model}
 \presenter{Anika}
 
@@ -45,16 +46,36 @@
   \end{itemize}
 
   \note{
-    Our model is one encoder used for both sides of the search.
-    Audio comes in at 22 kHz. A front-end turns it into feature frames every 10 ms:
-    either three onset-strength curves for low, mid and high frequencies (roughly kick,
-    snare and hi-hat), which is R1, or a 64-band log-mel spectrogram, which is R3.
-    A stride-2 convolution groups the frames into 20 ms tokens, and a small 4-layer
-    Transformer looks across the whole two bars. A learned token tells it whether the
-    input is a drum loop, a beatbox or a tap. Attention pooling squeezes everything into
-    one 128-number vector of length one. Loops and beatboxes go through the same weights,
-    so searching is just finding the nearest vectors. It has about 550 thousand
-    parameters and trains in about 35 minutes per model on a laptop GPU.
+    Our model is one encoder for both sides of the search. A front-end turns the audio
+    into feature frames every 10 milliseconds, a convolution groups them into
+    20-millisecond tokens, and a small 4-layer Transformer reads the whole two bars,
+    with a token telling it whether it's hearing a loop, a beatbox or a tap.
+    Attention pooling gives one vector of 128 numbers. Same rhythm should mean nearby
+    vectors, so searching is a nearest-neighbor lookup.
+  }
+\end{frame}
+
+% ------------------------------------------------------------
+\begin{frame}{What the model hears: R1 vs.\ R3}
+  \slidepoint{A beatbox and a drum kit sound nothing alike, but their hits land in the same places.}
+
+  \slidefig[4.6cm]{c_inputs.pdf}
+
+  \vspace{0.1cm}
+  \raggedright\small
+  \begin{itemize}
+    \item \textbf{R1} keeps only \emph{when} energy jumps, in 3 bands (below 200 Hz,
+          200 Hz--5 kHz, above 5 kHz): almost no timbre.
+    \item \textbf{R3} keeps the whole spectrum: more information, but also the sound of
+          the mouth or the kit.
+  \end{itemize}
+
+  \note{
+    We compared two front-ends. This is one fake beatbox from the test set and its
+    matching drum loop. On the bottom, R3, the full spectrogram: the mouth and the drum
+    kit look completely different. On top, R1 keeps only when the energy jumps, in three
+    bands, roughly kick, snare and hi-hat, and there the hits line up on the same beats.
+    R1 throws timbre away on purpose; R3 leaves it to the model to learn what matters.
   }
 \end{frame}
 
@@ -71,7 +92,7 @@
               one beatbox per pattern: different kits, different voices, different sloppiness.
         \item \textbf{Data:} 6,889 training rhythms; 34,520 loops on 5 kits and
               13,808 fake beatboxes from 20 AVP voices.
-        \item AdamW, cosine learning-rate decay, gradient clipping (some seeds collapsed without it).
+        \item AdamW, cosine learning-rate decay, gradient clipping.
         \item Validation MRR every epoch, on new rhythms; the best checkpoint is kept.
       \end{itemize}
     \column{0.48\textwidth}
@@ -79,19 +100,48 @@
   \end{columns}
 
   \note{
-    We train with a supervised contrastive loss. Every batch has 32 rhythms, with three
-    versions of each: a loop on some kit, and a fake beatbox in a different AVP voice
-    with different sloppiness. There is always at least one beatbox per rhythm.
-    The loss pulls the versions of the same rhythm together and pushes every other rhythm
-    away. The training set is about 6,900 rhythms: 34,500 drum loops on five kits and
-    13,800 fake beatboxes from 20 voices. After every epoch we check retrieval on
-    validation rhythms the model has never seen, and keep the best checkpoint.
-    On the curve, the loss drops fast in the first few epochs, and validation MRR climbs
-    from about 0.15 to 0.3 for R1 and 0.33 for R3, far above random guessing at under
-    0.01. Both flatten out around epoch 20. One practical lesson: without gradient
-    clipping, some random seeds collapsed, and every clip got the same vector.
-    Validation uses the training kits, so it doesn't tell us how the model does on new
-    sounds. Dylan will show that next: the test set, with new rhythms, new drum kits and
-    new voices, against the baselines.
+    We train with a supervised contrastive loss. Each batch has 32 rhythms, three
+    versions of each, on different kits and in different voices. The loss pulls versions
+    of the same rhythm together and pushes the other rhythms apart. The training data is
+    about 6,900 rhythms: 34,500 loops and 13,800 fake beatboxes. Validation MRR climbs to
+    about 0.3, far above random guessing at under 0.01, and flattens around epoch 20.
+  }
+\end{frame}
+
+% ------------------------------------------------------------
+\begin{frame}{Making training work}
+  \slidepoint{Four problems we hit, and the fix for each.}
+
+  \small
+  \begin{tabular}{@{}p{0.38\textwidth}p{0.58\textwidth}@{}}
+    \toprule
+    Problem & Fix \\
+    \midrule
+    Some random seeds \textbf{collapsed}: every clip got the same vector
+      & Small starting values for the kind token, normalized inputs, pooling over audio
+        frames only, gradient clipping \\
+    \addlinespace
+    \textbf{Too slow} with one token per 10 ms frame
+      & Stride-2 convolution: half the tokens, a quarter of the attention cost; lengths
+        padded to multiples of 64 so the GPU reuses its kernels.
+        Practice data: about 230 s $\rightarrow$ 4 s per epoch \\
+    \addlinespace
+    About \textbf{2 in 7 rhythms} in a random batch had \textbf{no beatbox}
+      & The batch sampler gives every rhythm at least one beatbox among its 3 views \\
+    \addlinespace
+    \textbf{Test data leaking} into training
+      & Checked in code before every run: test kits, test voices and test rhythms
+        can't reach training \\
+    \bottomrule
+  \end{tabular}
+
+  \note{
+    Four things we had to fix. Some runs collapsed and mapped every clip to the same
+    vector; small starting values, normalization, frame-only pooling and gradient
+    clipping fixed that. Training was about 50 times too slow until a stride-2
+    convolution halved the sequence. Almost a third of the rhythms in a random batch had
+    no beatbox, so the sampler now guarantees one. And the code refuses to train if
+    anything from the test set leaks in. Dylan will now show how the model does on that
+    test set: new rhythms, new drum kits and new voices, against the baselines.
   }
 \end{frame}

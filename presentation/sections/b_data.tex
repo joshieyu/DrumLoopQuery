@@ -1,9 +1,6 @@
 % ============================================================
-% B: Overall pipeline, library, fake beatbox queries   (Junior, ~2:15)
+% B: Overall pipeline, library, fake beatbox queries (Junior, ~2:15)
 % ============================================================
-% Scaffold: the pipeline figure and the facts below are filled in from our repo
-% (spec v0.7, B's v0.5 handoff). Replace every red TODO, and cut whatever you
-% don't need to fit the time.
 \section{Method: Data}
 \presenter{Junior}
 
@@ -17,18 +14,18 @@
   pnote/.style={font=\scriptsize, text=SoftGray, align=center},
   ptag/.style={circle, fill=UCFBlack, text=white, font=\tiny\bfseries, inner sep=1.2pt},
 }
-% Role tag on a box corner: \roletag{node}{A}
 \newcommand{\roletag}[2]{\node[ptag, anchor=center] at (#1.north east) {#2};}
 
 % ------------------------------------------------------------
 \begin{frame}{Overall pipeline}
-  \slidepoint{Library loops and fake queries are rendered from the same MIDI pattern, so every query's right answers are known exactly.}
+  \slidepoint{Each synthetic query shares a source rhythm with its matching
+    library loops.}
 
   \centering
   \begin{adjustbox}{max width=\textwidth}
   \begin{tikzpicture}[node distance=0.55cm and 0.75cm]
     \node[pplain] (midi) {GMD drum\\pattern (MIDI)};
-    \node[pbox, above right=0.1cm and 0.9cm of midi] (kits) {Render through\\7 drum kits};
+    \node[pbox, above right=0.1cm and 0.9cm of midi] (kits) {Render with kits\\assigned to the split};
     \node[pbox, below right=0.1cm and 0.9cm of midi] (bb) {AVP mouth sounds\\simplify + sloppiness};
     \node[pplain, right=of kits] (loop) {Library\\loop};
     \node[pplain, right=of bb] (fake) {Fake beatbox\\query};
@@ -59,15 +56,27 @@
   \end{tikzpicture}
   \end{adjustbox}
 
-  \vspace{0.2cm}
-  {\footnotesize\color{SoftGray}
-  \textbf{A} Joshua: musical rules (what counts as the same rhythm, how people beatbox) \quad
-  \textbf{B} Junior: library and queries \quad
-  \textbf{C} Anika: model \quad
-  \textbf{D} Dylan: answer key and evaluation\par}
+    \vspace{0.2cm}
+    {\centering
+    \setlength{\tabcolsep}{0.55cm}
+    \begin{tabular}{@{}cccc@{}}
+      \tikz[baseline=(badge.base)]{\node[ptag] (badge) {A};} &
+      \tikz[baseline=(badge.base)]{\node[ptag] (badge) {B};} &
+      \tikz[baseline=(badge.base)]{\node[ptag] (badge) {C};} &
+      \tikz[baseline=(badge.base)]{\node[ptag] (badge) {D};} \\[2pt]
+      \textbf{Joshua} & \textbf{Junior} & \textbf{Anika} & \textbf{Dylan} \\[-1pt]
+      \scriptsize Rhythm rules &
+      \scriptsize Library and queries &
+      \scriptsize Model &
+      \scriptsize Evaluation
+    \end{tabular}\par}
 
   \note{
-    We start with a drum pattern recorded as MIDI—instructions describing which drums were hit and when. We create two versions: a drum-kit recording for the library, and a synthetic beatbox recording using real mouth sounds. Because both come from the same pattern, we know which recordings should match.
+    We start with MIDI, which tells us which drums were hit and when.
+    We use the same pattern to make drum-kit recordings for the
+    library and synthetic beatboxes from real mouth sounds.
+    Since both come from the same rhythm, we know which library
+    clips should match each synthetic query.
   }
 \end{frame}
 
@@ -80,24 +89,22 @@
     \column{0.50\textwidth}
       \small
       \begin{itemize}
-        \item \textbf{Source:} Groove MIDI Dataset;
+        \item \textbf{Source:} Groove MIDI Dataset,
           388 performances selected by our pipeline.
 
         \item \textbf{8,643 two-bar loops.}
-          Preserve GMD's original splits, removing three
-          training copies whose patterns also appeared
-          in validation or test.
+          We kept GMD's original splits and removed three
+          training copies of patterns found in validation or test.
 
         \item \textbf{7 acoustic kits:}
-          5 for training and validation;
-          Salamander and MuldjordKit held out for testing.
+          five for training and validation, with Salamander
+          and MuldjordKit held out for testing.
 
         \item Recorded tempo, a 0.25\,s lead-in,
           and a cut at the end of bar two with a 20\,ms fade.
 
-        \item \textbf{40,536 drum clips};
-          approximately \textbf{53.8 hours},
-          including lead-ins.
+        \item \textbf{40,536 drum clips}, about
+          \textbf{53.8 hours} including lead-ins.
       \end{itemize}
 
     \column{0.46\textwidth}
@@ -117,39 +124,31 @@
 
       \vspace{0.4cm}
       {\footnotesize
-        Each source loop is rendered through
-        every kit assigned to its split.
+        Each source loop is rendered on every kit
+        assigned to its split.
       }
   \end{columns}
 
   \note{
-    MIDI describes drum hits and their timing rather than
-    containing recorded audio. We selected 388 performances
-    and cut them into 8,643 usable two-bar loops.
+    We cut the performances into 8,643 two-bar loops. Each
+    training or validation loop was played on five kits, and each
+    test loop was played on two kits the model hadn't heard.
+    That's how we got from about 8,600 source loops to more
+    than 40,000 audio clips.
 
-    We preserve the original dataset splits, except that
-    three training copies were removed to prevent the same
-    rhythm appearing across splits.
-
-    Each training or validation loop is rendered through
-    five kits. Each test loop is rendered through two
-    held-out kits. This produces 40,536 audio clips,
-    representing about 53.8 hours including lead-ins.
-
-    We also checked all 57,822 generated audio files,
-    including the beatbox queries, with the model's loader.
-    We verified the split assignments and confirmed that
-    every query has a matching library target.
+    % If asked about validation: the model's loader checked all
+    % 57,822 audio files. We also checked the split assignments
+    % and confirmed that every synthetic query has a library match.
   }
 \end{frame}
 
 % ------------------------------------------------------------
 \begin{frame}{Fake beatbox queries}
-  \slidepoint{Each pattern is ``beatboxed'' with one real
-    person's mouth sounds, then simplified and made less precise.}
+  \slidepoint{Each synthetic query uses one person's mouth sounds.
+    We simplify the pattern and vary timing, missed hits, and noise.}
 
   \begin{columns}[T,onlytextwidth]
-    \column{0.5\textwidth}
+    \column{0.50\textwidth}
       \small
       \begin{itemize}
         \item \textbf{Voices:} AVP dataset, 28 amateur
@@ -158,7 +157,7 @@
 
         \item \textbf{Simplification:} priority goes to kicks,
           then snares, then hats. One sound at a time,
-          no overlap, and a speed limit.
+          with a speed limit.
 
         \item \textbf{Sloppiness:} steady rush or drag
           (up to $\pm$20\,ms), per-hit wobble (up to 40\,ms),
@@ -174,70 +173,49 @@
   \end{columns}
 
   \note{
-    To make the beatbox queries, we use recordings from AVP,
-    a dataset of 28 amateur beatboxers. We take their individual
-    kick, snare, and hi-hat sounds and arrange them to follow
-    the source drum pattern.
+    For the beatbox side, we take real kick, snare, and hi-hat
+    mouth sounds from the AVP dataset. Each source loop gets
+    two versions from the same person, using their two sound sets.
+    We held out five beatboxers so we could test on unfamiliar voices.
 
-    Each source loop gets two versions from the same assigned
-    participant: one using their Personal sound set, and one
-    using their Fixed sound set.
-
-    We simplify the pattern so it can be voiced one sound
-    at a time. Kicks have priority over snares, and snares
-    over hats when deciding which hits to keep. This is a
-    priority rule, not a fixed order of sounds in the recording.
-
-    We then add timing changes, dropped hits, and noise.
-    The middle row shows the clean beatbox, and the bottom
-    row adds those imperfections. The red cross marks a
-    hit that was dropped.
-
-    We generated 17,286 queries. Each keeps its source rhythm
-    label, so we know which drum loops it should retrieve.
+    In the figure, the middle row is the clean version. The
+    bottom row has timing changes, dropped hits, and noise.
+    The red cross shows one hit that was dropped.
   }
 \end{frame}
 
 % ------------------------------------------------------------
 \begin{frame}{Making the fake beatboxes sound human}
-  \slidepoint{In the listening comparison, the initial queries
-    had roughly twice the median hit rate of real AVP recordings.
-    A speed limit reduced that gap.}
+  \slidepoint{The initial queries had roughly twice the median hit rate
+    of real AVP recordings. A speed limit reduced that gap.}
 
   \slidefig[3.4cm]{beatbox_speed.pdf}
 
   \vspace{0.1cm}
   \small
   \begin{itemize}
-    \item \textbf{Speed limit:} candidates need at least
-      120\,ms for kicks and snares, or 250\,ms for hats,
-      from every hit already kept in priority order.
+    \item \textbf{Speed limit:} keep a kick or snare only if it is
+      at least 120\,ms from every hit already kept. For hats,
+      the minimum is 250\,ms.
 
-    \item \textbf{Known trade-off:} the full build retains
-      only 10\% of the source hi-hat hits.
-      This limitation was accepted for v0.
+    \item \textbf{Trade-off:} the full build retains only about
+      10\% of the source hi-hat hits.
 
-    \item The source rhythm label stays unchanged,
-      only the sounds voiced by the fake beatboxer change.
+    \item The original rhythm still determines the correct matches.
   \end{itemize}
 
   \note{
-    The first version tried to voice too many drum hits.
-    In Joshua's listening comparison, the median rate was
-    5.9 sounds per second, compared with 2.7 in real AVP
-    improvisations. The speed limit brought it down to 3.4.
+    The first version tried to squeeze in too many sounds.
+    The median went from 5.9 sounds per second down to 3.4
+    with the speed limit. Real AVP beatboxers were at 2.7
+    in that comparison.
 
-    Those numbers describe the listening comparison shown
-    here. In the full dataset, about 98 percent of kicks,
-    60 percent of snares, and only 10 percent of hi-hats
-    survive the simplification rules.
+    The trade-off is that we voiced only about one in ten
+    of the source hi-hat hits. The original rhythm still
+    tells us which loops count as matches.
 
-    The recordings are less busy, but they lose a lot of
-    the hat pattern. Joshua accepted that limitation for
-    this initial dataset.
-
-    Each query still points to its original source rhythm.
-    Testing on real team recordings will help us see how
-    well the model handles naturally performed beatboxes.
+    We also recorded a small set of real beatboxes for
+    testing. Anika will explain how we trained the model
+    on the synthetic pairs.
   }
 \end{frame}
